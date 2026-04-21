@@ -20,12 +20,16 @@ class ProbePanelView(HomeAssistantView):
     name = f"{DOMAIN}:panel"
     requires_auth = False
 
-    def __init__(self, html_path: str) -> None:
-        self._html_path = html_path
+    def __init__(self, html: str) -> None:
+        self._html = html
 
     async def get(self, request: web.Request) -> web.Response:
-        text = Path(self._html_path).read_text(encoding="utf-8")
-        return web.Response(text=text.replace("{{VERSION}}", VERSION), content_type="text/html")
+        return web.Response(text=self._html, content_type="text/html")
+
+
+def _load_panel_html(html_path: str, version: str) -> str:
+    """Load and prepare panel HTML outside the event loop."""
+    return Path(html_path).read_text(encoding="utf-8").replace("{{VERSION}}", version)
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -40,7 +44,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = {}
 
     html_path = hass.config.path("custom_components", DOMAIN, "www", "panel.html")
-    hass.http.register_view(ProbePanelView(html_path))
+    panel_html = await hass.async_add_executor_job(_load_panel_html, html_path, VERSION)
+    hass.http.register_view(ProbePanelView(panel_html))
     register_api_views(hass)
 
     static_path = str(hass.config.path("custom_components", DOMAIN, "www"))

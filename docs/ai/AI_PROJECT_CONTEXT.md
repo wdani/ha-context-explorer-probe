@@ -23,7 +23,7 @@ Repository files are the project source of truth. Local reference material under
 
 ## Current phase
 
-Version `0.2.0` implements the first real explorer slice:
+Version `0.2.1` contains the first real explorer slice plus a focused panel I/O and auth-failure handling fix:
 
 - overview
 - entities

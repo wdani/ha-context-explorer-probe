@@ -2,7 +2,7 @@
 
 ## Version
 
-`0.2.0`
+`0.2.1`
 
 ## Implemented
 
@@ -21,6 +21,8 @@
 - Compact backend shaping layer
 - Best-effort masking for selected sensitive string patterns
 - Tabbed frontend views with entity search/domain filtering
+- Cached panel HTML serving with no per-request filesystem read
+- Global frontend protected-data failure state for 401/403 auth failures
 - Documentation and review baseline
 
 ## Not implemented
@@ -35,4 +37,4 @@
 
 ## Known validation gap
 
-Local syntax and static checks are useful, but live Home Assistant runtime testing is still required to confirm iframe auth behavior and registry compatibility across HA versions.
+Local syntax and static checks are useful, but live Home Assistant runtime testing is still required to confirm whether the iframe auth context can safely access admin-only JSON endpoints in each deployment. If it cannot, the current UI fails once and explains the protected-data failure without weakening endpoint auth.

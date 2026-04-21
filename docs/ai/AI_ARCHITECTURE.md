@@ -8,7 +8,7 @@ The integration registers:
 - static frontend assets under `/local/ha_context_explorer_probe`
 - six authenticated admin-only JSON endpoints under `/api/ha_context_explorer_probe`
 
-The panel shell may remain boot-compatible for iframe loading. Real data access is enforced at the JSON endpoints.
+The panel shell may remain boot-compatible for iframe loading. Its HTML is loaded during setup and then served from memory. Real data access is enforced at the JSON endpoints.
 
 ## Backend data flow
 
@@ -35,7 +35,7 @@ Masking is best-effort and not guaranteed anonymization.
 
 ## Frontend data flow
 
-The frontend uses same-origin `fetch` with credentials for each scope endpoint. It does not hard-code browser storage token keys. If Home Assistant auth is unavailable to the iframe runtime, the frontend displays the returned 401/403 state.
+The frontend uses same-origin `fetch` with credentials for each scope endpoint. It does not hard-code browser storage token keys. If Home Assistant auth is unavailable to the iframe runtime, the frontend records one global 401/403 protected-data failure and stops further endpoint requests for that page session.
 
 ## Capability model
 

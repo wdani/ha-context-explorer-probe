@@ -12,6 +12,7 @@ const appState = {
   activeScope: "overview",
   data: {},
   loading: {},
+  authBlocked: null,
   entitySearch: "",
   entityDomain: "",
 };
@@ -60,6 +61,12 @@ function activateScope(scope) {
 }
 
 async function loadScope(scope) {
+  if (appState.authBlocked) {
+    appState.data[scope] = authBlockedPayload(scope);
+    renderScope(scope);
+    return;
+  }
+
   if (appState.data[scope] || appState.loading[scope]) {
     renderScope(scope);
     return;
@@ -77,9 +84,15 @@ async function loadScope(scope) {
 
     appState.data[scope] = await response.json();
     setStatus("Connected", "Admin data endpoint available");
+    clearGlobalNotice();
   } catch (error) {
-    appState.data[scope] = { error: errorMessage(error), items: [], warnings: [] };
-    setStatus("Unavailable", shortError(error));
+    const message = errorMessage(error);
+    if (isAuthError(error)) {
+      blockProtectedData(message);
+    } else {
+      appState.data[scope] = { error: message, items: [], warnings: [] };
+      setStatus("Unavailable", shortError(error));
+    }
   } finally {
     appState.loading[scope] = false;
     renderScope(scope);
@@ -144,6 +157,7 @@ function renderEntities() {
   const data = appState.data.entities || {};
   const target = clearById("entities-list");
   if (data.error) {
+    setCountText("entities-count", 0);
     setEmpty("entities-list", "Entities unavailable", data.error);
     return;
   }
@@ -335,6 +349,44 @@ function setStatus(label, detail) {
   document.getElementById("data-state-detail").textContent = detail;
 }
 
+function blockProtectedData(message) {
+  appState.authBlocked = message;
+  SCOPES.forEach((scope) => {
+    appState.data[scope] = authBlockedPayload(scope);
+  });
+  setStatus("Auth required", "Protected data did not load");
+  renderGlobalAuthFailure(message);
+}
+
+function authBlockedPayload(scope) {
+  return {
+    scope,
+    error: `The panel shell loaded, but protected Home Assistant data could not be accessed. ${appState.authBlocked || ""}`.trim(),
+    items: [],
+    warnings: [],
+  };
+}
+
+function renderGlobalAuthFailure(message) {
+  const notice = document.getElementById("auth-notice");
+  notice.hidden = false;
+  notice.textContent = "";
+  notice.append(el("strong", "", "Protected data unavailable"));
+  notice.append(
+    el(
+      "p",
+      "",
+      `The panel iframe loaded successfully, but the current Home Assistant auth context was not accepted by the admin-only JSON endpoints. ${message}`
+    )
+  );
+}
+
+function clearGlobalNotice() {
+  const notice = document.getElementById("auth-notice");
+  notice.hidden = true;
+  notice.textContent = "";
+}
+
 function setCountText(id, count, total) {
   const target = document.getElementById(id);
   if (!target) return;
@@ -391,6 +443,10 @@ function shortError(error) {
     return `${error.status} ${error.statusText || "HTTP error"}`;
   }
   return "Request failed";
+}
+
+function isAuthError(error) {
+  return error instanceof ApiError && (error.status === 401 || error.status === 403);
 }
 
 class ApiError extends Error {

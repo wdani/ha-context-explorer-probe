@@ -14,7 +14,7 @@ This is **not** a continuation of `ha-ai-context-exporter`. It is a clean probe 
 
 ## Current version
 
-`0.2.0`
+`0.2.1`
 
 ## Implemented scope
 
@@ -49,7 +49,7 @@ All real data endpoints are `GET` only and require authenticated Home Assistant 
 - `/api/ha_context_explorer_probe/integrations`
 - `/api/ha_context_explorer_probe/relationships`
 
-The panel shell is still served in a way that can boot inside the Home Assistant iframe panel. Real JSON data is protected separately by Home Assistant auth and an explicit admin check. If the iframe runtime does not provide a compatible auth context for same-origin API requests, the UI shows the 401/403 state instead of weakening endpoint auth.
+The panel shell is still served in a way that can boot inside the Home Assistant iframe panel. Its HTML is loaded during setup and served from memory to avoid blocking request-handler I/O. Real JSON data is protected separately by Home Assistant auth and an explicit admin check. If the iframe runtime does not provide a compatible auth context for same-origin API requests, the UI shows one clear 401/403 state instead of weakening endpoint auth or repeatedly probing protected endpoints.
 
 ## Safety boundaries
 
@@ -73,7 +73,7 @@ This masking is best-effort. It is not guaranteed anonymization, and users shoul
 
 ## Future scopes
 
-Future phases may explore floors, labels, dashboards, services, and deeper logic relationships. Those scopes are not implemented in `0.2.0`, and the UI/API should describe them as unavailable or planned rather than pretending support exists.
+Future phases may explore floors, labels, dashboards, services, and deeper logic relationships. Those scopes are not implemented in `0.2.1`, and the UI/API should describe them as unavailable or planned rather than pretending support exists.
 
 ## Local reference material
 

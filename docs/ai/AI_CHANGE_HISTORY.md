@@ -1,5 +1,22 @@
 # AI Change History
 
+## 0.2.1
+
+Focused follow-up for live-runtime panel issues.
+
+Key changes:
+
+- Loaded and prepared `panel.html` once during setup via Home Assistant executor work.
+- Served cached panel HTML from memory in the request handler.
+- Kept real JSON endpoints authenticated and admin-only.
+- Added global frontend handling for 401/403 protected-data failures so the panel stops further protected endpoint requests after the first auth failure.
+
+Honest current state:
+
+- This does not weaken endpoint auth to make iframe loading easier.
+- If the iframe runtime cannot pass an acceptable auth context, the UI explains that protected data is unavailable.
+- A fuller auth bridge remains future work unless a safe Home Assistant-supported panel path is chosen.
+
 ## 0.2.0
 
 Phase 2 turned the starter into a first real read-only explorer slice.

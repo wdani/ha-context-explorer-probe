@@ -124,6 +124,26 @@ h3 {
   max-width: 1320px;
 }
 
+.auth-notice {
+  background: #fff7ed;
+  border: 1px solid #e5cbbd;
+  border-radius: 8px;
+  color: var(--warn);
+  display: grid;
+  gap: 5px;
+  margin: 0 auto 18px;
+  max-width: 1320px;
+  padding: 13px 14px;
+}
+
+.auth-notice[hidden] {
+  display: none;
+}
+
+.auth-notice p {
+  color: #704130;
+}
+
 .view {
   display: none;
 }

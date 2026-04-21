@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Removed blocking per-request `panel.html` file reads by loading and preparing the panel HTML once during setup.
+- Kept all real JSON data endpoints authenticated and admin-only.
+- Improved panel auth failure handling so a 401/403 from protected data endpoints becomes one clear UI state instead of repeated failing requests.
+- Documented that iframe auth constraints may still require live-runtime follow-up; endpoint auth was not weakened.
+
 ## 0.2.0
 
 - Replaced placeholder status/capabilities API responses with real read-only explorer endpoints for overview, entities, devices, areas, integrations, and relationships.

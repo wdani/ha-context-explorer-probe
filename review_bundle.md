@@ -1,8 +1,99 @@
 # Review Bundle
 
+## 0.2.1 follow-up review
+
+Task: `fix-panel-io-auth`
+
+Result: partial auth-path fix with endpoint security preserved.
+
+- Blocking request-handler file I/O was removed from the panel HTML view.
+- `panel.html` is loaded and version-prepared during setup through `hass.async_add_executor_job`.
+- The panel request handler now serves cached HTML from memory.
+- Real JSON endpoints still set `requires_auth = True`.
+- Real JSON endpoints still enforce admin access with `request["hass_user"].is_admin`.
+- Frontend same-origin fetch remains minimal and does not scrape browser storage or hard-code token keys.
+- On 401/403, the frontend records one global protected-data failure, marks all views unavailable, and avoids further protected endpoint requests during that page session.
+- This does not prove that iframe auth is fully resolved in every Home Assistant runtime. If the current iframe context still cannot authenticate same-origin JSON fetches, the UI now fails quietly and honestly while preserving endpoint auth.
+
+### 0.2.1 validation commands
+
+Backend syntax:
+
+```powershell
+python -c "import ast, pathlib; files=[pathlib.Path('custom_components/ha_context_explorer_probe/__init__.py'), pathlib.Path('custom_components/ha_context_explorer_probe/api.py'), pathlib.Path('custom_components/ha_context_explorer_probe/privacy.py'), pathlib.Path('custom_components/ha_context_explorer_probe/config_flow.py'), pathlib.Path('custom_components/ha_context_explorer_probe/const.py')]; [ast.parse(path.read_text(encoding='utf-8'), filename=str(path)) for path in files]; print('AST syntax OK for', len(files), 'backend files')"
+```
+
+Result:
+
+```text
+AST syntax OK for 5 backend files
+```
+
+Manifest JSON:
+
+```powershell
+python -c "import json, pathlib; json.loads(pathlib.Path('custom_components/ha_context_explorer_probe/manifest.json').read_text(encoding='utf-8')); print('manifest JSON OK')"
+```
+
+Result:
+
+```text
+manifest JSON OK
+```
+
+Safety scan:
+
+```powershell
+Get-ChildItem -Recurse -File -Path custom_components\ha_context_explorer_probe | Select-String -Pattern "def post|def put|def patch|def delete|hass\.services\.async_call|async_register_service|register_admin_service|\.storage|secrets|hassTokens|localStorage|sessionStorage|Authorization|Bearer"
+```
+
+Result:
+
+```text
+No matches.
+```
+
+Panel I/O scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\__init__.py | Select-String -Pattern "async_add_executor_job|read_text|async def get"
+```
+
+Result:
+
+```text
+read_text is confined to _load_panel_html, and setup calls hass.async_add_executor_job(_load_panel_html, ...).
+ProbePanelView.get returns cached HTML from memory.
+```
+
+Auth no-spam scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\www\app.js | Select-String -Pattern "authBlocked|blockProtectedData|isAuthError|fetch"
+```
+
+Result:
+
+```text
+app.js keeps one authBlocked state, handles 401/403 through blockProtectedData(), and skips later fetches while authBlocked is set.
+No localStorage/sessionStorage/hassTokens/Authorization/Bearer references were found.
+```
+
+Reference-data safety scan:
+
+```powershell
+Get-ChildItem -Recurse -File -Path . | Where-Object { $_.FullName -notlike '*\_local_reference\*' -and $_.FullName -notlike '*\.git\*' } | Select-String -Pattern "<known local snapshot markers>"
+```
+
+Result:
+
+```text
+No matches.
+```
+
 ## Scope
 
-Phase 2 implements HA Context Explorer Probe `0.2.0` as the first real read-only explorer slice.
+Phase 2 implemented HA Context Explorer Probe `0.2.0` as the first real read-only explorer slice. The current corrective version is `0.2.1`.
 
 Implemented real data scopes:
 
