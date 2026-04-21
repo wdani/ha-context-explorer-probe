@@ -1,5 +1,129 @@
 # Review Bundle
 
+## 0.3.0 follow-up review
+
+Task: `add-logic-reference-slice`
+
+Result: first read-only logic/reference starter slice implemented.
+
+- Added authenticated/admin-only `GET /api/ha_context_explorer_probe/logic`.
+- Added the `logic` implemented scope and removed it from future/unavailable scopes.
+- Added read-only parsing for canonical `automations.yaml` and `scripts.yaml` only.
+- Added compact automation, script, and entity usage summaries.
+- Added structured `source_coverage` as the primary source-state surface.
+- Added distinct source states for parsed/available, missing, unsupported starter source, parse failed, and partially parsed.
+- Kept source identifiers compact with basenames such as `automations.yaml` and `scripts.yaml`.
+- Added a Logic tab with summary cards, source coverage, automation rows, script rows, entity usage rows, and non-duplicative caveats.
+- Existing endpoint auth/admin checks, GET-only behavior, and no-spam frontend auth handling remain intact.
+- This is a starter logic/reference slice, not a full Home Assistant logic graph, template parser, or execution tracer.
+
+### 0.3.0 validation results
+
+Backend syntax:
+
+```powershell
+python -c "import ast, pathlib; files=[pathlib.Path('custom_components/ha_context_explorer_probe/__init__.py'), pathlib.Path('custom_components/ha_context_explorer_probe/api.py'), pathlib.Path('custom_components/ha_context_explorer_probe/logic.py'), pathlib.Path('custom_components/ha_context_explorer_probe/privacy.py'), pathlib.Path('custom_components/ha_context_explorer_probe/config_flow.py'), pathlib.Path('custom_components/ha_context_explorer_probe/const.py')]; [ast.parse(path.read_text(encoding='utf-8'), filename=str(path)) for path in files]; print('AST syntax OK for', len(files), 'backend files')"
+```
+
+Result:
+
+```text
+AST syntax OK for 6 backend files
+```
+
+Manifest JSON:
+
+```powershell
+python -c "import json, pathlib; json.loads(pathlib.Path('custom_components/ha_context_explorer_probe/manifest.json').read_text(encoding='utf-8')); print('manifest JSON OK')"
+```
+
+Result:
+
+```text
+manifest JSON OK
+```
+
+Parser availability:
+
+```powershell
+python -c "import importlib.util; print('yaml available:', importlib.util.find_spec('yaml') is not None); print('homeassistant available:', importlib.util.find_spec('homeassistant') is not None)"
+```
+
+Result:
+
+```text
+yaml available: True
+homeassistant available: False
+```
+
+Safety scan:
+
+```powershell
+Get-ChildItem -Recurse -File -Path custom_components\ha_context_explorer_probe | Select-String -Pattern "def post|def put|def patch|def delete|hass\.services\.async_call|async_register_service|register_admin_service|\.async_set\(|\.storage|secrets\.yaml|localStorage|sessionStorage|Authorization|Bearer"
+```
+
+Result:
+
+```text
+No matches.
+```
+
+Auth/admin scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\api.py | Select-String -Pattern "requires_auth = True|_require_admin|is_admin|Unauthorized|logic"
+```
+
+Result:
+
+```text
+JSON views still set requires_auth = True, call _require_admin(), and include the logic route.
+```
+
+Logic source scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\logic.py | Select-String -Pattern "automations.yaml|scripts.yaml|source_coverage|unsupported_starter_slice|path.read_text|async_add_executor_job"
+```
+
+Result:
+
+```text
+Logic reads only canonical automations.yaml and scripts.yaml through async_add_executor_job. Source coverage uses structured starter-slice statuses.
+```
+
+Frontend scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\www\app.js | Select-String -Pattern "logic|Source Coverage|source_coverage|SOURCE_STATUS_LABELS|hass.callApi"
+```
+
+Result:
+
+```text
+Logic tab, source coverage rendering, status labels, and hass.callApi loading path were found.
+```
+
+Reference-data safety scan:
+
+```powershell
+Get-ChildItem -Recurse -File -Path custom_components\ha_context_explorer_probe | Select-String -Pattern "_local_reference|probe_input"
+Get-ChildItem -Recurse -File -Path README.md,CHANGELOG.md,docs | Select-String -Pattern "probe_input"
+```
+
+Result:
+
+```text
+No implementation file references `_local_reference/` or `probe_input`.
+No README, changelog, or AI documentation file references `probe_input`.
+```
+
+Validation caveats:
+
+- Local Home Assistant runtime testing was not possible in this sandbox because `homeassistant available: False`.
+- JavaScript syntax was reviewed by source inspection; `node --check` could not run because `node.exe` is blocked by the local execution environment, even with escalation.
+- Live validation should confirm that the Logic tab loads source coverage and parsed references in the user's Home Assistant runtime.
+
 ## 0.2.3 follow-up review
 
 Task: `refine-privacy-display`

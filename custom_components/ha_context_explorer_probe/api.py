@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Callable
+from inspect import isawaitable
+from typing import Any, Awaitable, Callable
 
 from aiohttp import web
 
@@ -15,6 +16,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN, VERSION
+from .logic import build_logic_payload
 from .privacy import mask_value
 
 API_BASE = f"/api/{DOMAIN}"
@@ -26,6 +28,7 @@ IMPLEMENTED_SCOPES = (
     "areas",
     "integrations",
     "relationships",
+    "logic",
 )
 
 FUTURE_SCOPES = (
@@ -33,7 +36,6 @@ FUTURE_SCOPES = (
     "labels",
     "dashboards",
     "services",
-    "logic",
 )
 
 IMPORTANT_ATTRIBUTE_KEYS = (
@@ -83,7 +85,11 @@ class ProbeDataView(HomeAssistantView):
 
     requires_auth = True
 
-    def __init__(self, scope: str, builder: Callable[[HomeAssistant], dict[str, Any]]) -> None:
+    def __init__(
+        self,
+        scope: str,
+        builder: Callable[[HomeAssistant], dict[str, Any] | Awaitable[dict[str, Any]]],
+    ) -> None:
         self.url = f"{API_BASE}/{scope}"
         self.name = f"api:{DOMAIN}:{scope}"
         self._builder = builder
@@ -92,24 +98,28 @@ class ProbeDataView(HomeAssistantView):
         """Return compact read-only data for one scope."""
         _require_admin(request)
         hass: HomeAssistant = request.app["hass"]
-        return self.json(self._builder(hass))
+        payload = self._builder(hass)
+        if isawaitable(payload):
+            payload = await payload
+        return self.json(payload)
 
 
 def register_api_views(hass: HomeAssistant) -> None:
     """Register all real data API views."""
-    views: tuple[tuple[str, Callable[[HomeAssistant], dict[str, Any]]], ...] = (
+    views: tuple[tuple[str, Callable[[HomeAssistant], dict[str, Any] | Awaitable[dict[str, Any]]]], ...] = (
         ("overview", build_overview_payload),
         ("entities", build_entities_payload),
         ("devices", build_devices_payload),
         ("areas", build_areas_payload),
         ("integrations", build_integrations_payload),
         ("relationships", build_relationships_payload),
+        ("logic", build_logic_payload),
     )
     for scope, builder in views:
         hass.http.register_view(ProbeDataView(scope, builder))
 
 
-def build_overview_payload(hass: HomeAssistant) -> dict[str, Any]:
+async def build_overview_payload(hass: HomeAssistant) -> dict[str, Any]:
     """Build the overview response."""
     snapshot = _snapshot(hass)
     entity_items = _build_entity_items(snapshot)
@@ -117,6 +127,7 @@ def build_overview_payload(hass: HomeAssistant) -> dict[str, Any]:
     area_items = _build_area_items(snapshot)
     integration_items = _build_integration_items(snapshot)
     relationships = _build_relationships(snapshot)
+    logic = await build_logic_payload(hass)
 
     warnings = list(snapshot.warnings)
     warnings.extend(
@@ -138,6 +149,7 @@ def build_overview_payload(hass: HomeAssistant) -> dict[str, Any]:
             "areas": len(area_items),
             "integrations": len(integration_items),
             "relationships": relationships["counts"],
+            "logic": logic["counts"],
         },
         "capabilities": {
             "implemented": {

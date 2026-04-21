@@ -1,5 +1,26 @@
 # AI Change History
 
+## 0.3.0
+
+First logic/reference starter slice for Home Assistant context understanding.
+
+Key changes:
+
+- Added authenticated admin-only `GET /logic`.
+- Added read-only parsing for canonical `automations.yaml` and `scripts.yaml`.
+- Added best-effort entity and script reference extraction.
+- Added compact automation, script, and entity usage summaries.
+- Added structured `source_coverage` as the primary source-state surface.
+- Added a Logic tab with visible source coverage and starter-slice exclusions.
+
+Important boundaries kept:
+
+- No service calls, mutation handlers, state changes, config writes, `.storage` access, secret access, token scraping, or persistent preferences were introduced.
+- Packages, include-based layouts, dashboards, storage-only editor internals, full template dependency coverage, graph visualization, and execution tracing remain out of scope.
+- Partial parsing returns successfully extracted items whenever possible and marks the affected source as partial or failed.
+- Source identifiers are compact basenames such as `automations.yaml` and `scripts.yaml`, not absolute config paths.
+- This is not a full Home Assistant logic graph.
+
 ## 0.2.3
 
 Privacy/display refinement for the existing implemented scopes.

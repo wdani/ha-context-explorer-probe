@@ -2,7 +2,7 @@
 
 ## Version
 
-`0.2.3`
+`0.3.0`
 
 ## Implemented
 
@@ -17,12 +17,15 @@
   - areas
   - integrations
   - relationships
+  - logic
 - Admin-only enforcement for JSON data endpoints
 - Compact backend shaping layer
+- First read-only logic/reference shaping layer
 - Best-effort masking for selected sensitive string patterns
 - Tabbed frontend views with entity search/domain filtering
 - Frontend API loading through the Home Assistant `hass.callApi` panel context
 - Label-first default display for entities, devices, areas, integrations, and relationships
+- Logic tab with source coverage, automation/script summaries, and entity usage summaries
 - Session-only raw identifier reveal toggle
 - Global frontend protected-data failure state for 401/403 auth failures
 - Documentation and review baseline
@@ -37,12 +40,18 @@ In the user's tested Home Assistant runtime on the current working branch:
 - Entities, devices, areas, integrations, and relationships load real items/link sets.
 - The previous iframe-style invalid-auth failure is no longer the active observed behavior.
 
+The `0.3.0` logic slice has not been live-tested in this sandbox. It is implemented as a read-only starter slice that parses only canonical `automations.yaml` and `scripts.yaml` when those files are available in the Home Assistant config directory.
+
 ## Not implemented
 
 - Floors full implementation
 - Labels full implementation
 - Dashboards full implementation
+- Packages and include-based logic layouts
+- Storage-only editor internals
+- Full template dependency coverage
 - Deep YAML or logic graphing
+- Graph visualization or execution tracing
 - Service exploration beyond future planning
 - Write settings or saved preferences
 - Any mutation feature

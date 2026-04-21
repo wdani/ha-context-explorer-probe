@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0
+
+- Added the first read-only `logic` scope for automation/script reference exploration.
+- Added authenticated/admin-only `GET /api/ha_context_explorer_probe/logic`.
+- Read only canonical `automations.yaml` and `scripts.yaml` through executor-safe file I/O.
+- Added compact automation, script, and entity reference summaries.
+- Added structured `source_coverage` with distinct parsed, missing, unsupported, failed, and partial states.
+- Added a Logic tab with source coverage, summary cards, automation rows, script rows, and entity usage rows.
+- Kept source identifiers compact with basenames only; absolute Home Assistant config paths are not returned.
+- Kept warnings focused on non-duplicative caveats and preserved existing auth/read-only constraints.
+- Bumped the integration version to `0.3.0`.
+
 ## 0.2.3
 
 - Added non-breaking display label fields for entities, devices, areas, integrations, and relationships.

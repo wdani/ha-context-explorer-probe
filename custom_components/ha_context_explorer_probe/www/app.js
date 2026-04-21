@@ -1,7 +1,7 @@
 const API_PATH_BASE = "ha_context_explorer_probe";
-const APP_VERSION = "0.2.3";
+const APP_VERSION = "0.3.0";
 const STATIC_BASE = "/local/ha_context_explorer_probe";
-const SCOPES = ["overview", "entities", "devices", "areas", "integrations", "relationships"];
+const SCOPES = ["overview", "entities", "devices", "areas", "integrations", "relationships", "logic"];
 const RELATIONSHIP_SETS = [
   {
     key: "entity_to_device",
@@ -58,6 +58,14 @@ const appState = {
   entitySearch: "",
   entityDomain: "",
   showRawIds: false,
+};
+
+const SOURCE_STATUS_LABELS = {
+  parsed_available: "Parsed and available",
+  missing: "Missing",
+  unsupported_starter_slice: "Unsupported in starter",
+  parse_failed: "Parse failed",
+  partially_parsed: "Partially parsed",
 };
 
 class HAContextExplorerProbePanel extends HTMLElement {
@@ -127,6 +135,7 @@ function shellHtml() {
         <button class="tab-button" type="button" data-scope="areas">Areas</button>
         <button class="tab-button" type="button" data-scope="integrations">Integrations</button>
         <button class="tab-button" type="button" data-scope="relationships">Relationships</button>
+        <button class="tab-button" type="button" data-scope="logic">Logic</button>
         <label class="raw-toggle">
           <input id="raw-id-toggle" type="checkbox" />
           <span>Show raw identifiers</span>
@@ -204,6 +213,39 @@ function shellHtml() {
           </div>
           <div class="metric-grid" id="relationships-summary" data-loading-target>Loading</div>
           <div class="relationship-lists" id="relationships-lists"></div>
+        </section>
+
+        <section class="view" id="view-logic">
+          <div class="section-heading">
+            <h2>Logic</h2>
+            <span class="count-label" id="logic-count">0 references</span>
+          </div>
+          <div class="metric-grid" id="logic-summary" data-loading-target>Loading</div>
+          <section class="logic-section">
+            <div class="relationship-heading">
+              <h3>Source Coverage</h3>
+              <span class="badge muted">starter slice</span>
+            </div>
+            <div class="coverage-grid" id="logic-source-coverage">Loading</div>
+          </section>
+          <div class="logic-grid">
+            <section class="logic-section">
+              <h3>Automations</h3>
+              <div class="list" id="logic-automations">Loading</div>
+            </section>
+            <section class="logic-section">
+              <h3>Scripts</h3>
+              <div class="list" id="logic-scripts">Loading</div>
+            </section>
+          </div>
+          <section class="logic-section">
+            <h3>Entity Usage</h3>
+            <div class="list" id="logic-entity-references">Loading</div>
+          </section>
+          <section class="logic-section">
+            <h3>Additional Caveats</h3>
+            <div class="stack" id="logic-warnings">Loading</div>
+          </section>
         </section>
       </main>
     </div>
@@ -307,6 +349,8 @@ function renderScope(scope) {
     renderIntegrations();
   } else if (scope === "relationships") {
     renderRelationships();
+  } else if (scope === "logic") {
+    renderLogic();
   }
 }
 
@@ -327,6 +371,7 @@ function renderOverview() {
     ["Areas", counts.areas],
     ["Integrations", counts.integrations],
     ["Relationships", relationshipTotal],
+    ["Logic refs", counts.logic?.total_references],
   ];
 
   const countTarget = clearById("overview-counts");
@@ -493,6 +538,150 @@ function renderRelationships() {
     section.append(table);
     listTarget.append(section);
   });
+}
+
+function renderLogic() {
+  const data = appState.data.logic || {};
+  if (data.error) {
+    setCountText("logic-count", 0);
+    setEmpty("logic-summary", "Logic unavailable", data.error);
+    setEmpty("logic-source-coverage", "Source coverage unavailable", data.error);
+    setEmpty("logic-automations", "Automations unavailable", data.error);
+    setEmpty("logic-scripts", "Scripts unavailable", data.error);
+    setEmpty("logic-entity-references", "Entity usage unavailable", data.error);
+    setEmpty("logic-warnings", "Caveats unavailable", data.error);
+    return;
+  }
+
+  const counts = data.counts || {};
+  byId("logic-count").textContent = `${formatValue(counts.total_references)} refs across ${formatValue(counts.referenced_entities)} entities`;
+
+  const summaryTarget = clearById("logic-summary");
+  [
+    ["Automations", counts.automations],
+    ["Scripts", counts.scripts],
+    ["Referenced entities", counts.referenced_entities],
+    ["Total refs", counts.total_references],
+  ].forEach(([label, value]) => {
+    const card = el("article", "metric-card compact");
+    card.append(el("span", "metric-label", label));
+    card.append(el("strong", "metric-value", formatValue(value)));
+    summaryTarget.append(card);
+  });
+
+  const referencesById = Object.fromEntries((data.entity_references || []).map((item) => [item.entity_id, item]));
+  const scriptLabels = Object.fromEntries((data.scripts || []).map((item) => [item.id, item.display_name || item.entity_id || item.id]));
+
+  renderSourceCoverage(data.source_coverage || []);
+  renderLogicConfigList("logic-automations", data.automations || [], referencesById, scriptLabels, "automation");
+  renderLogicConfigList("logic-scripts", data.scripts || [], referencesById, scriptLabels, "script");
+  renderEntityReferences(data.entity_references || []);
+  renderWarnings("logic-warnings", data.warnings || []);
+}
+
+function renderSourceCoverage(items) {
+  const target = clearById("logic-source-coverage");
+  if (!items.length) {
+    setEmpty("logic-source-coverage", "No source coverage", "The logic endpoint did not report source coverage.");
+    return;
+  }
+
+  items.forEach((item) => {
+    const card = el("article", `coverage-card status-${item.status || "unknown"}`);
+    const header = el("div", "coverage-header");
+    header.append(el("strong", "", item.label || item.source || "Source"));
+    header.append(el("span", "badge muted", SOURCE_STATUS_LABELS[item.status] || item.status || "unknown"));
+    card.append(header);
+    card.append(el("div", "row-subtitle", item.source_file || item.source || "generic source"));
+    card.append(el("div", "coverage-count", `${formatValue(item.parsed_item_count)} parsed item(s)`));
+    if (item.detail) {
+      card.append(el("p", "coverage-detail", item.detail));
+    }
+    target.append(card);
+  });
+}
+
+function renderLogicConfigList(targetId, items, referencesById, scriptLabels, kind) {
+  const target = clearById(targetId);
+  if (!items.length) {
+    setEmpty(targetId, kind === "automation" ? "No automations" : "No scripts", "No parsed items were returned for this source.");
+    return;
+  }
+
+  items.forEach((item) => {
+    const row = el("article", "list-row logic-row");
+    const main = el("div", "row-main");
+    main.append(el("div", "row-title", item.display_name || item.alias || item.entity_id || item.id || "Unnamed"));
+    main.append(el("div", "row-subtitle", appState.showRawIds ? [item.id, item.entity_id].filter(Boolean).join(" / ") : item.source_file || ""));
+
+    const details = el("div", "row-details");
+    if (item.source_file) details.append(badge(item.source_file));
+    if (item.mode) details.append(badge(`Mode: ${item.mode}`));
+    if (kind === "automation" && item.enabled !== null && item.enabled !== undefined) {
+      details.append(badge(item.enabled ? "Enabled" : "Disabled"));
+    }
+    const summary = item.summary || {};
+    Object.entries(summary).forEach(([label, value]) => details.append(badge(`${humanizeIdentifier(label)}: ${formatValue(value)}`)));
+    if (appState.showRawIds) {
+      if (item.id) details.append(badge(`ID: ${item.id}`));
+      if (item.entity_id) details.append(badge(`Entity: ${item.entity_id}`));
+    }
+
+    row.append(main, details);
+    row.append(logicReferenceChips("Entities", item.referenced_entities || [], (entityId) => referenceLabel(entityId, referencesById), "No entity references"));
+    row.append(logicReferenceChips("Scripts", item.referenced_script_ids || [], (scriptId) => scriptLabel(scriptId, scriptLabels), "No script references"));
+    target.append(row);
+  });
+}
+
+function renderEntityReferences(items) {
+  const target = clearById("logic-entity-references");
+  if (!items.length) {
+    setEmpty("logic-entity-references", "No entity references", "No entity references were extracted from the parsed starter sources.");
+    return;
+  }
+
+  items.slice(0, 120).forEach((item) => {
+    const row = el("article", "list-row");
+    const main = el("div", "row-main");
+    main.append(el("div", "row-title", item.display_name || entityFallback(item.entity_id)));
+    main.append(el("div", "row-subtitle", appState.showRawIds ? item.entity_id : `${formatValue(item.reference_count)} total reference(s)`));
+    const details = el("div", "row-details");
+    details.append(badge(`${formatValue(item.reference_count)} refs`));
+    details.append(badge(`${formatValue((item.referenced_by_automations || []).length)} automations`));
+    details.append(badge(`${formatValue((item.referenced_by_scripts || []).length)} scripts`));
+    if (appState.showRawIds) {
+      details.append(badge(`ID: ${item.entity_id}`));
+    }
+    row.append(main, details);
+    target.append(row);
+  });
+}
+
+function logicReferenceChips(label, values, formatter, emptyText) {
+  const block = el("div", "logic-reference-block");
+  block.append(el("span", "logic-reference-label", label));
+  const details = el("div", "row-details");
+  if (!values.length) {
+    details.append(el("span", "muted-text", emptyText));
+  } else {
+    values.slice(0, 12).forEach((value) => details.append(badge(formatter(value))));
+    if (values.length > 12) {
+      details.append(badge(`+${values.length - 12} more`));
+    }
+  }
+  block.append(details);
+  return block;
+}
+
+function referenceLabel(entityId, referencesById) {
+  const label = referencesById[entityId]?.display_name || entityFallback(entityId);
+  return appState.showRawIds ? `${label} (${entityId})` : label;
+}
+
+function scriptLabel(scriptId, scriptLabels) {
+  const label = scriptLabels[scriptId] || humanizeIdentifier(scriptId);
+  return appState.showRawIds ? `${label} (script.${scriptId})` : label;
 }
 
 function relationshipRow(row, set) {

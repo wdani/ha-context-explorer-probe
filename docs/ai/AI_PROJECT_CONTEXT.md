@@ -23,7 +23,7 @@ Repository files are the project source of truth. Local reference material under
 
 ## Current phase
 
-Version `0.2.3` contains the first real explorer slice plus focused panel I/O, native custom-panel auth bridge fixes, and privacy-first display refinement:
+Version `0.3.0` contains the first real explorer slice plus focused panel I/O, native custom-panel auth bridge fixes, privacy-first display refinement, and the first logic/reference starter slice:
 
 - overview
 - entities
@@ -31,5 +31,8 @@ Version `0.2.3` contains the first real explorer slice plus focused panel I/O, n
 - areas
 - integrations
 - relationships
+- logic
 
-Future scopes may include floors, labels, dashboards, services, and logic, but those remain planned and unavailable in this phase.
+The logic slice currently reads only canonical `automations.yaml` and `scripts.yaml` for best-effort automation/script/entity references. It exposes source coverage directly so users can see parsed, missing, unsupported, failed, and partial states.
+
+Future scope may include floors, labels, dashboards, services, package/include logic layouts, full template dependency coverage, graph visualization, and deeper execution/context modeling, but those remain planned and unavailable in this phase.
