@@ -2,7 +2,7 @@
 
 ## Version
 
-`0.2.2`
+`0.2.3`
 
 ## Implemented
 
@@ -22,6 +22,8 @@
 - Best-effort masking for selected sensitive string patterns
 - Tabbed frontend views with entity search/domain filtering
 - Frontend API loading through the Home Assistant `hass.callApi` panel context
+- Label-first default display for entities, devices, areas, integrations, and relationships
+- Session-only raw identifier reveal toggle
 - Global frontend protected-data failure state for 401/403 auth failures
 - Documentation and review baseline
 

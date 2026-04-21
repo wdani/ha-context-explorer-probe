@@ -1,5 +1,123 @@
 # Review Bundle
 
+## 0.2.3 follow-up review
+
+Task: `refine-privacy-display`
+
+Result: privacy-first display refinement implemented for the existing six scopes.
+
+- Added non-breaking display fields beside existing raw identifiers.
+- Default UI rendering now prefers user-facing labels for entities, devices, areas, integrations, and relationships.
+- Entity rows use `display_name` first; raw `entity_id` is the default primary label only when no friendly or registry-derived label exists.
+- Relationship rows now show label-first node summaries by default instead of raw identifier columns.
+- Added a session-local `Show raw identifiers` toggle with no saved preference storage.
+- Existing raw fields remain available in JSON for compatibility and optional reveal.
+- No new scopes were added.
+- This reduces default raw identifier exposure but is not full anonymization.
+
+### 0.2.3 validation results
+
+Backend syntax:
+
+```powershell
+python -c "import ast, pathlib; files=[pathlib.Path('custom_components/ha_context_explorer_probe/__init__.py'), pathlib.Path('custom_components/ha_context_explorer_probe/api.py'), pathlib.Path('custom_components/ha_context_explorer_probe/privacy.py'), pathlib.Path('custom_components/ha_context_explorer_probe/config_flow.py'), pathlib.Path('custom_components/ha_context_explorer_probe/const.py')]; [ast.parse(path.read_text(encoding='utf-8'), filename=str(path)) for path in files]; print('AST syntax OK for', len(files), 'backend files')"
+```
+
+Result:
+
+```text
+AST syntax OK for 5 backend files
+```
+
+Manifest JSON:
+
+```powershell
+python -c "import json, pathlib; json.loads(pathlib.Path('custom_components/ha_context_explorer_probe/manifest.json').read_text(encoding='utf-8')); print('manifest JSON OK')"
+```
+
+Result:
+
+```text
+manifest JSON OK
+```
+
+Safety scan:
+
+```powershell
+Get-ChildItem -Recurse -File -Path custom_components\ha_context_explorer_probe | Select-String -Pattern "def post|def put|def patch|def delete|hass\.services\.async_call|async_register_service|register_admin_service|\.storage|secrets|hassTokens|localStorage|sessionStorage|Authorization|Bearer"
+```
+
+Result:
+
+```text
+No matches.
+```
+
+Auth/admin scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\api.py | Select-String -Pattern "requires_auth = True|_require_admin|is_admin|Unauthorized"
+```
+
+Result:
+
+```text
+JSON views still set requires_auth = True and call _require_admin(); _require_admin still checks request["hass_user"].is_admin and raises Unauthorized.
+```
+
+Display-field scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\api.py,custom_components\ha_context_explorer_probe\www\app.js | Select-String -Pattern "display_name|device_label|area_label|integration_label|entity_label|showRawIds|raw-id-toggle"
+```
+
+Result:
+
+```text
+Expected non-breaking label fields and the session-local raw identifier toggle were found.
+```
+
+Frontend display review:
+
+- Entity rows use `display_name` before the compact technical entity fallback.
+- Entity raw IDs, device IDs, area IDs, and integration domains are rendered as badges only when `showRawIds` is enabled, except when a compact fallback is necessary because no label exists.
+- Device, area, and integration lists use display labels by default and keep raw identifiers behind the same session-local toggle.
+- Relationship rows use label-first summaries through `displayNode()` and render raw node identifiers only inside the `showRawIds` branch.
+- The toggle is held only in JavaScript memory (`appState.showRawIds`) and does not use persistent browser storage.
+
+Version alignment scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\const.py,custom_components\ha_context_explorer_probe\manifest.json,custom_components\ha_context_explorer_probe\www\app.js,README.md,CHANGELOG.md,docs\ai\AI_CURRENT_STATE.md,docs\ai\AI_CHANGE_HISTORY.md,docs\ai\AI_PROJECT_CONTEXT.md,review_bundle.md | Select-String -Pattern "0\.2\.3"
+```
+
+Result:
+
+```text
+Current-version source files and docs reference 0.2.3. Historical 0.2.0, 0.2.1, and 0.2.2 notes remain intact.
+```
+
+Reference-data safety scan:
+
+```powershell
+Get-ChildItem -Recurse -File -Path custom_components\ha_context_explorer_probe | Select-String -Pattern "_local_reference|probe_input"
+Get-ChildItem -Recurse -File -Path README.md,CHANGELOG.md,docs | Select-String -Pattern "probe_input"
+Get-Content -Path .gitignore | Select-String -Pattern "_local_reference"
+```
+
+Result:
+
+```text
+No implementation file reads or references `_local_reference/` or `probe_input`.
+No README, changelog, or AI documentation file references `probe_input`. Policy-only mentions of `_local_reference/` remain in docs.
+`.gitignore` still lists `_local_reference/`.
+```
+
+Validation caveats:
+
+- JavaScript syntax was reviewed statically by source inspection. `node --check` was not available in this local execution environment.
+- Live Home Assistant runtime validation was not repeated in this sandbox for `0.2.3`. The previously confirmed `0.2.2` native panel/auth behavior remains the baseline runtime result; this change only adds display fields and default UI presentation changes.
+
 ## 0.2.2 follow-up review
 
 Task: `resolve-panel-auth-bridge`
@@ -221,7 +339,7 @@ No matches.
 
 ## Scope
 
-Phase 2 implemented HA Context Explorer Probe `0.2.0` as the first real read-only explorer slice. The current corrective version is `0.2.2`.
+Phase 2 implemented HA Context Explorer Probe `0.2.0` as the first real read-only explorer slice. The current corrective/display-refinement version is `0.2.3`.
 
 Implemented real data scopes:
 
@@ -362,7 +480,7 @@ At the time of the original Phase-2 review, `0.2.0` was confirmed in:
 - `CHANGELOG.md`
 - `docs/ai/AI_CURRENT_STATE.md`
 
-Current version alignment is covered by the newer 0.2.2 review section above. Historical `0.1.1`, `0.1.0`, and prior corrective-version references remain only in changelog/change-history/review context.
+Current version alignment is covered by the newer 0.2.3 review section above. Historical `0.1.1`, `0.1.0`, and prior corrective-version references remain only in changelog/change-history/review context.
 
 ### Historical Home Assistant runtime caveat
 

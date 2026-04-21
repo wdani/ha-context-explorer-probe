@@ -23,7 +23,7 @@ Repository files are the project source of truth. Local reference material under
 
 ## Current phase
 
-Version `0.2.2` contains the first real explorer slice plus focused panel I/O and native custom-panel auth bridge fixes:
+Version `0.2.3` contains the first real explorer slice plus focused panel I/O, native custom-panel auth bridge fixes, and privacy-first display refinement:
 
 - overview
 - entities

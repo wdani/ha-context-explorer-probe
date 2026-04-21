@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.3
+
+- Added non-breaking display label fields for entities, devices, areas, integrations, and relationships.
+- Updated default frontend rendering to prefer masked, user-facing labels over raw internal identifiers.
+- Refined the relationships view into label-first rows while preserving relationship counts and summaries.
+- Added a session-only `Show raw identifiers` toggle for debugging without persistent preferences.
+- Kept existing authenticated/admin-only GET endpoints, read-only behavior, and implemented scopes unchanged.
+- Bumped the integration version to `0.2.3`.
+
 ## 0.2.2
 
 - Replaced the iframe panel registration with Home Assistant's native custom panel registration.

@@ -121,6 +121,22 @@ h3 {
   color: #ffffff;
 }
 
+.raw-toggle {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  display: inline-flex;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 11px;
+}
+
+.raw-toggle input {
+  accent-color: var(--accent);
+}
+
 .workspace {
   margin: 0 auto;
   max-width: 1320px;
@@ -339,7 +355,7 @@ h3 {
 .relationship-row {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   padding: 9px 11px;
 }
 
@@ -349,6 +365,33 @@ h3 {
 
 .relationship-row span {
   overflow-wrap: anywhere;
+}
+
+.relationship-summary-line {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.relationship-node {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-weight: 700;
+  padding: 6px 8px;
+}
+
+.relationship-arrow {
+  color: var(--muted);
+}
+
+.raw-identifiers {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.82rem;
+  gap: 3px;
 }
 
 @media (max-width: 800px) {

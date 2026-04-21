@@ -1,5 +1,23 @@
 # AI Change History
 
+## 0.2.3
+
+Privacy/display refinement for the existing implemented scopes.
+
+Key changes:
+
+- Added display label fields beside existing raw identifiers.
+- Updated default UI rendering to prefer masked, user-facing labels.
+- Made relationships label-first and easier to scan without exposing long raw IDs by default.
+- Added a session-only raw identifier reveal toggle.
+
+Important boundaries kept:
+
+- No new scopes were added.
+- Endpoint auth/admin checks and GET-only behavior were unchanged.
+- No persistent preferences, token hacks, service calls, or mutation paths were introduced.
+- This improves default presentation and reduces raw identifier exposure; it is not full anonymization.
+
 ## 0.2.2
 
 Focused follow-up for the panel-to-API auth bridge.

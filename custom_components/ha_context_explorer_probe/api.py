@@ -50,6 +50,8 @@ IMPORTANT_ATTRIBUTE_KEYS = (
     "illuminance",
 )
 
+FALLBACK_ID_LENGTH = 8
+
 READ_ONLY_FLAGS = {
     "read_only": True,
     "get_only": True,
@@ -66,6 +68,7 @@ class ProbeSnapshot:
     """In-memory Home Assistant data used to shape one response."""
 
     states: list[Any]
+    states_by_entity_id: dict[str, Any]
     entity_entries_by_id: dict[str, Any]
     device_entries_by_id: dict[str, Any]
     area_entries_by_id: dict[str, Any]
@@ -271,6 +274,7 @@ def _snapshot(hass: HomeAssistant) -> ProbeSnapshot:
 
     return ProbeSnapshot(
         states=states,
+        states_by_entity_id={state.entity_id: state for state in states},
         entity_entries_by_id={
             entity_id: entry
             for entry in entity_entries
@@ -309,10 +313,12 @@ def _build_entity_items(snapshot: ProbeSnapshot) -> list[dict[str, Any]]:
         resolved_area_id = _resolve_area_id(snapshot, entry)
         integration = _entity_integration(snapshot, entity_id, entry)
         friendly_name = state.attributes.get("friendly_name") if hasattr(state, "attributes") else None
+        display_name = _entity_display_name(snapshot, entity_id)
 
         items.append(
             {
                 "entity_id": entity_id,
+                "display_name": display_name,
                 "domain": _entity_domain(entity_id),
                 "state": mask_value(state.state, "state"),
                 "friendly_name": mask_value(friendly_name, "friendly_name") if friendly_name else None,
@@ -320,9 +326,12 @@ def _build_entity_items(snapshot: ProbeSnapshot) -> list[dict[str, Any]]:
                 "last_updated": _isoformat(getattr(state, "last_updated", None)),
                 "important_attributes": _important_attributes(getattr(state, "attributes", {})),
                 "device_id": device_id,
+                "device_label": _device_label(snapshot, device_id),
                 "area_id": direct_area_id,
                 "resolved_area_id": resolved_area_id,
+                "area_label": _area_label(snapshot, resolved_area_id),
                 "integration": integration,
+                "integration_label": _integration_label(snapshot, integration),
             }
         )
 
@@ -339,12 +348,15 @@ def _build_device_items(snapshot: ProbeSnapshot) -> list[dict[str, Any]]:
         items.append(
             {
                 "device_id": device_id,
+                "display_name": _device_label(snapshot, device_id),
                 "name": mask_value(_device_name(device), "device_name"),
                 "manufacturer": mask_value(_entry_attr(device, "manufacturer"), "manufacturer"),
                 "model": mask_value(_entry_attr(device, "model"), "model"),
                 "area_id": _entry_attr(device, "area_id"),
+                "area_label": _area_label(snapshot, _entry_attr(device, "area_id")),
                 "linked_entity_count": entity_counts.get(device_id, 0),
                 "integrations": integrations,
+                "integration_labels": [_integration_label(snapshot, integration) for integration in integrations],
             }
         )
 
@@ -361,6 +373,7 @@ def _build_area_items(snapshot: ProbeSnapshot) -> list[dict[str, Any]]:
         items.append(
             {
                 "area_id": area_id,
+                "display_name": _area_label(snapshot, area_id),
                 "name": mask_value(_entry_attr(area, "name"), "area_name"),
                 "device_count": device_counts.get(area_id, 0),
                 "entity_count": entity_counts.get(area_id, 0),
@@ -398,6 +411,7 @@ def _build_integration_items(snapshot: ProbeSnapshot) -> list[dict[str, Any]]:
         items.append(
             {
                 "domain": domain,
+                "display_name": _integration_label(snapshot, domain),
                 "title": mask_value(first_title, "integration_title"),
                 "source": sources[0] if len(sources) == 1 else ("multiple" if sources else None),
                 "kind": _integration_kind(has_entries, has_component),
@@ -427,19 +441,55 @@ def _build_relationships(snapshot: ProbeSnapshot) -> dict[str, Any]:
         integration = _entity_integration(snapshot, entity_id, entry)
 
         if device_id:
-            entity_to_device.append({"entity_id": entity_id, "device_id": device_id})
+            entity_to_device.append(
+                {
+                    "entity_id": entity_id,
+                    "entity_label": _entity_display_name(snapshot, entity_id),
+                    "device_id": device_id,
+                    "device_label": _device_label(snapshot, device_id),
+                }
+            )
         if resolved_area_id:
             source = "entity" if direct_area_id else "device"
-            entity_to_area.append({"entity_id": entity_id, "area_id": resolved_area_id, "source": source})
+            entity_to_area.append(
+                {
+                    "entity_id": entity_id,
+                    "entity_label": _entity_display_name(snapshot, entity_id),
+                    "area_id": resolved_area_id,
+                    "area_label": _area_label(snapshot, resolved_area_id),
+                    "source": source,
+                }
+            )
         if integration:
-            entity_to_integration.append({"entity_id": entity_id, "domain": integration})
+            entity_to_integration.append(
+                {
+                    "entity_id": entity_id,
+                    "entity_label": _entity_display_name(snapshot, entity_id),
+                    "domain": integration,
+                    "integration_label": _integration_label(snapshot, integration),
+                }
+            )
 
     for device_id, device in sorted(snapshot.device_entries_by_id.items()):
         area_id = _entry_attr(device, "area_id")
         if area_id:
-            device_to_area.append({"device_id": device_id, "area_id": area_id})
+            device_to_area.append(
+                {
+                    "device_id": device_id,
+                    "device_label": _device_label(snapshot, device_id),
+                    "area_id": area_id,
+                    "area_label": _area_label(snapshot, area_id),
+                }
+            )
         for integration in _device_integrations(snapshot, device):
-            device_to_integration.append({"device_id": device_id, "domain": integration})
+            device_to_integration.append(
+                {
+                    "device_id": device_id,
+                    "device_label": _device_label(snapshot, device_id),
+                    "domain": integration,
+                    "integration_label": _integration_label(snapshot, integration),
+                }
+            )
 
     return {
         "counts": {
@@ -498,6 +548,119 @@ def _string_value(value: Any | None) -> str | None:
     if enum_value := getattr(value, "value", None):
         return str(enum_value)
     return str(value)
+
+
+def _display_candidate(value: Any | None, key: str, raw_values: tuple[Any, ...] = ()) -> str | None:
+    """Return a masked label candidate when it is better than a raw identifier."""
+    text = _string_value(value)
+    if text is None or not text.strip():
+        return None
+
+    masked = mask_value(text.strip(), key)
+    if not isinstance(masked, str) or not masked.strip():
+        return None
+
+    raw_texts = {str(raw).strip().lower() for raw in raw_values if raw}
+    if masked.strip().lower() in raw_texts:
+        return None
+    return masked.strip()
+
+
+def _entity_display_name(snapshot: ProbeSnapshot, entity_id: str) -> str:
+    """Return the best user-facing entity label with an honest raw fallback."""
+    state = snapshot.states_by_entity_id.get(entity_id)
+    entry = snapshot.entity_entries_by_id.get(entity_id)
+    attributes = getattr(state, "attributes", {}) if state is not None else {}
+
+    for value, key in (
+        (attributes.get("friendly_name"), "friendly_name"),
+        (_entry_attr(entry, "name"), "entity_name"),
+        (_entry_attr(entry, "original_name"), "entity_original_name"),
+    ):
+        if label := _display_candidate(value, key, (entity_id,)):
+            return label
+
+    return f"Entity: {_compact_identifier(entity_id)}"
+
+
+def _device_label(snapshot: ProbeSnapshot, device_id: str | None) -> str | None:
+    """Return the best user-facing device label."""
+    if not device_id:
+        return None
+
+    device = snapshot.device_entries_by_id.get(device_id)
+    for value, key in (
+        (_device_name(device), "device_name"),
+        (_combined_model_label(device), "device_model"),
+    ):
+        if label := _display_candidate(value, key, (device_id,)):
+            return label
+
+    return _technical_fallback("Device", device_id)
+
+
+def _area_label(snapshot: ProbeSnapshot, area_id: str | None) -> str | None:
+    """Return the best user-facing area label."""
+    if not area_id:
+        return None
+
+    area = snapshot.area_entries_by_id.get(area_id)
+    if label := _display_candidate(_entry_attr(area, "name"), "area_name", (area_id,)):
+        return label
+    return _technical_fallback("Area", area_id)
+
+
+def _integration_label(snapshot: ProbeSnapshot, domain: str | None) -> str | None:
+    """Return the best user-facing integration label."""
+    if not domain:
+        return None
+
+    for entry in snapshot.config_entries:
+        if _entry_attr(entry, "domain") != domain:
+            continue
+        if label := _display_candidate(_entry_attr(entry, "title"), "integration_title", (domain,)):
+            return label
+
+    return _humanize_identifier(domain)
+
+
+def _combined_model_label(device: Any | None) -> str | None:
+    """Return a useful device label from manufacturer/model when no name exists."""
+    parts = [
+        _string_value(_entry_attr(device, "manufacturer")),
+        _string_value(_entry_attr(device, "model")),
+    ]
+    label = " ".join(part.strip() for part in parts if part and part.strip())
+    return label or None
+
+
+def _technical_fallback(kind: str, identifier: str | None) -> str:
+    """Return a compact, honest technical fallback."""
+    if not identifier:
+        return f"Unnamed {kind.lower()}"
+    return f"{kind} ({_identifier_suffix(identifier)})"
+
+
+def _identifier_suffix(identifier: str) -> str:
+    """Return a short suffix for an internal identifier."""
+    text = str(identifier)
+    if len(text) <= FALLBACK_ID_LENGTH:
+        return text
+    return f"...{text[-FALLBACK_ID_LENGTH:]}"
+
+
+def _compact_identifier(identifier: str, max_length: int = 48) -> str:
+    """Return a compact form of a technical identifier."""
+    text = str(identifier)
+    if len(text) <= max_length:
+        return text
+    return f"{text[:24]}...{text[-16:]}"
+
+
+def _humanize_identifier(identifier: str) -> str:
+    """Turn a technical identifier into a readable fallback label."""
+    text = str(identifier).replace("_", " ").replace("-", " ").replace(".", " ").strip()
+    return text.title() if text else "Integration"
 
 
 def _entity_domain(entity_id: str) -> str:

@@ -14,7 +14,7 @@ This is **not** a continuation of `ha-ai-context-exporter`. It is a clean probe 
 
 ## Current version
 
-`0.2.2`
+`0.2.3`
 
 ## Implemented scope
 
@@ -53,6 +53,8 @@ The sidebar now uses Home Assistant's native custom panel model instead of an if
 
 In the user's tested Home Assistant runtime for `0.2.2`, the native panel reports `Connected / Admin data endpoint available` and the implemented protected scopes load real data. This is a tested-runtime confirmation, not a guarantee for every Home Assistant version or deployment topology.
 
+Version `0.2.3` refines the current views to prefer user-facing labels over raw internal identifiers by default. A session-only **Show raw identifiers** toggle can reveal technical IDs for debugging without saving preferences.
+
 ## Safety boundaries
 
 The project remains strict read-only:
@@ -75,7 +77,7 @@ This masking is best-effort. It is not guaranteed anonymization, and users shoul
 
 ## Future scopes
 
-Future phases may explore floors, labels, dashboards, services, and deeper logic relationships. Those scopes are not implemented in `0.2.2`, and the UI/API should describe them as unavailable or planned rather than pretending support exists.
+Future phases may explore floors, labels, dashboards, services, and deeper logic relationships. Those scopes are not implemented in `0.2.3`, and the UI/API should describe them as unavailable or planned rather than pretending support exists.
 
 ## Local reference material
 

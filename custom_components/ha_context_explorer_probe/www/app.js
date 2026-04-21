@@ -1,13 +1,49 @@
 const API_PATH_BASE = "ha_context_explorer_probe";
-const APP_VERSION = "0.2.2";
+const APP_VERSION = "0.2.3";
 const STATIC_BASE = "/local/ha_context_explorer_probe";
 const SCOPES = ["overview", "entities", "devices", "areas", "integrations", "relationships"];
 const RELATIONSHIP_SETS = [
-  ["entity_to_device", "Entity to device", ["entity_id", "device_id"]],
-  ["entity_to_area", "Entity to area", ["entity_id", "area_id", "source"]],
-  ["entity_to_integration", "Entity to integration", ["entity_id", "domain"]],
-  ["device_to_area", "Device to area", ["device_id", "area_id"]],
-  ["device_to_integration", "Device to integration", ["device_id", "domain"]],
+  {
+    key: "entity_to_device",
+    label: "Entity to device",
+    nodes: [
+      ["Entity", "entity_label", "entity_id"],
+      ["Device", "device_label", "device_id"],
+    ],
+  },
+  {
+    key: "entity_to_area",
+    label: "Entity to area",
+    nodes: [
+      ["Entity", "entity_label", "entity_id"],
+      ["Area", "area_label", "area_id"],
+    ],
+    meta: ["source"],
+  },
+  {
+    key: "entity_to_integration",
+    label: "Entity to integration",
+    nodes: [
+      ["Entity", "entity_label", "entity_id"],
+      ["Integration", "integration_label", "domain"],
+    ],
+  },
+  {
+    key: "device_to_area",
+    label: "Device to area",
+    nodes: [
+      ["Device", "device_label", "device_id"],
+      ["Area", "area_label", "area_id"],
+    ],
+  },
+  {
+    key: "device_to_integration",
+    label: "Device to integration",
+    nodes: [
+      ["Device", "device_label", "device_id"],
+      ["Integration", "integration_label", "domain"],
+    ],
+  },
 ];
 
 const appState = {
@@ -21,6 +57,7 @@ const appState = {
   authBlocked: null,
   entitySearch: "",
   entityDomain: "",
+  showRawIds: false,
 };
 
 class HAContextExplorerProbePanel extends HTMLElement {
@@ -54,6 +91,7 @@ class HAContextExplorerProbePanel extends HTMLElement {
       appState.root.innerHTML = shellHtml();
       bindTabs();
       bindEntityFilters();
+      bindRawToggle();
       appState.initialized = true;
     }
 
@@ -89,6 +127,10 @@ function shellHtml() {
         <button class="tab-button" type="button" data-scope="areas">Areas</button>
         <button class="tab-button" type="button" data-scope="integrations">Integrations</button>
         <button class="tab-button" type="button" data-scope="relationships">Relationships</button>
+        <label class="raw-toggle">
+          <input id="raw-id-toggle" type="checkbox" />
+          <span>Show raw identifiers</span>
+        </label>
       </nav>
 
       <section class="auth-notice" id="auth-notice" hidden aria-live="polite"></section>
@@ -186,6 +228,13 @@ function bindEntityFilters() {
   domain.addEventListener("change", () => {
     appState.entityDomain = domain.value;
     renderEntities();
+  });
+}
+
+function bindRawToggle() {
+  byId("raw-id-toggle").addEventListener("change", (event) => {
+    appState.showRawIds = event.target.checked;
+    renderScope(appState.activeScope);
   });
 }
 
@@ -314,11 +363,15 @@ function renderEntities() {
   const filtered = allItems.filter((item) => {
     const domainMatch = !appState.entityDomain || item.domain === appState.entityDomain;
     const searchText = [
+      item.display_name,
       item.entity_id,
       item.friendly_name,
       item.state,
+      item.integration_label,
       item.integration,
+      item.area_label,
       item.resolved_area_id,
+      item.device_label,
     ].filter(Boolean).join(" ").toLowerCase();
     return domainMatch && (!appState.entitySearch || searchText.includes(appState.entitySearch));
   });
@@ -334,14 +387,21 @@ function renderEntities() {
   filtered.forEach((item) => {
     const row = el("article", "list-row entity-row");
     const main = el("div", "row-main");
-    main.append(el("div", "row-title", item.entity_id));
-    main.append(el("div", "row-subtitle", item.friendly_name || "No friendly name"));
+    const title = item.display_name || entityFallback(item.entity_id);
+    main.append(el("div", "row-title", title));
+    main.append(el("div", "row-subtitle", entitySubtitle(item, title)));
 
     const details = el("div", "row-details");
     details.append(badge(item.domain));
-    if (item.integration) details.append(badge(item.integration));
-    if (item.resolved_area_id) details.append(badge(`area: ${item.resolved_area_id}`));
-    if (item.device_id) details.append(badge("device linked"));
+    if (item.integration_label) details.append(badge(item.integration_label));
+    if (item.area_label) details.append(badge(`Area: ${item.area_label}`));
+    if (item.device_label) details.append(badge(`Device: ${item.device_label}`));
+    if (appState.showRawIds) {
+      details.append(badge(`ID: ${item.entity_id}`));
+      if (item.device_id) details.append(badge(`Device ID: ${item.device_id}`));
+      if (item.resolved_area_id) details.append(badge(`Area ID: ${item.resolved_area_id}`));
+      if (item.integration) details.append(badge(`Domain: ${item.integration}`));
+    }
 
     const state = el("div", "state-pill", item.state ?? "unknown");
     row.append(main, details, state);
@@ -354,12 +414,14 @@ function renderEntities() {
 function renderDevices() {
   const data = appState.data.devices || {};
   renderList("devices-list", data, (item) => ({
-    title: item.name || item.device_id,
-    subtitle: [item.manufacturer, item.model].filter(Boolean).join(" ") || item.device_id,
+    title: item.display_name || technicalFallback("Device", item.device_id),
+    subtitle: appState.showRawIds ? item.device_id : [item.manufacturer, item.model].filter(Boolean).join(" "),
     badges: [
       `${formatValue(item.linked_entity_count)} entities`,
-      item.area_id ? `area: ${item.area_id}` : null,
-      ...(item.integrations || []),
+      item.area_label ? `Area: ${item.area_label}` : null,
+      ...(item.integration_labels || []),
+      ...(appState.showRawIds ? rawBadges([["Device ID", item.device_id], ["Area ID", item.area_id]]) : []),
+      ...(appState.showRawIds ? (item.integrations || []).map((domain) => `Domain: ${domain}`) : []),
     ],
   }));
   setCountText("devices-count", (data.items || []).length);
@@ -368,9 +430,13 @@ function renderDevices() {
 function renderAreas() {
   const data = appState.data.areas || {};
   renderList("areas-list", data, (item) => ({
-    title: item.name || item.area_id,
-    subtitle: item.area_id,
-    badges: [`${formatValue(item.device_count)} devices`, `${formatValue(item.entity_count)} entities`],
+    title: item.display_name || technicalFallback("Area", item.area_id),
+    subtitle: appState.showRawIds ? item.area_id : "",
+    badges: [
+      `${formatValue(item.device_count)} devices`,
+      `${formatValue(item.entity_count)} entities`,
+      ...(appState.showRawIds ? rawBadges([["Area ID", item.area_id]]) : []),
+    ],
   }));
   setCountText("areas-count", (data.items || []).length);
 }
@@ -378,15 +444,16 @@ function renderAreas() {
 function renderIntegrations() {
   const data = appState.data.integrations || {};
   renderList("integrations-list", data, (item) => ({
-    title: item.title || item.domain,
-    subtitle: item.domain,
+    title: item.display_name || humanizeIdentifier(item.domain),
+    subtitle: appState.showRawIds ? item.domain : item.kind,
     badges: [
-      item.kind,
+      appState.showRawIds ? item.kind : null,
       item.source,
       item.loaded_component ? "loaded" : null,
       `${formatValue(item.entry_count)} entries`,
       `${formatValue(item.entity_count)} entities`,
       `${formatValue(item.device_count)} devices`,
+      ...(appState.showRawIds ? rawBadges([["Domain", item.domain]]) : []),
     ],
   }));
   setCountText("integrations-count", (data.items || []).length);
@@ -402,31 +469,71 @@ function renderRelationships() {
     return;
   }
 
-  RELATIONSHIP_SETS.forEach(([key, label]) => {
-    const count = data.counts?.[key] || 0;
+  RELATIONSHIP_SETS.forEach((set) => {
+    const count = data.counts?.[set.key] || 0;
     const card = el("article", "metric-card compact");
-    card.append(el("span", "metric-label", label));
+    card.append(el("span", "metric-label", set.label));
     card.append(el("strong", "metric-value", formatValue(count)));
     summaryTarget.append(card);
   });
 
-  RELATIONSHIP_SETS.forEach(([key, label, fields]) => {
-    const rows = data[key] || [];
+  RELATIONSHIP_SETS.forEach((set) => {
+    const rows = data[set.key] || [];
     const section = el("section", "relationship-set");
     const heading = el("div", "relationship-heading");
-    heading.append(el("h3", "", label));
+    heading.append(el("h3", "", set.label));
     heading.append(el("span", "badge muted", `${Math.min(rows.length, 80)} of ${rows.length}`));
     section.append(heading);
 
     const table = el("div", "relationship-table");
     rows.slice(0, 80).forEach((row) => {
-      const line = el("div", "relationship-row");
-      fields.forEach((field) => line.append(el("span", "", row[field] || "")));
+      const line = relationshipRow(row, set);
       table.append(line);
     });
     section.append(table);
     listTarget.append(section);
   });
+}
+
+function relationshipRow(row, set) {
+  const line = el("div", "relationship-row");
+  const summary = el("div", "relationship-summary-line");
+
+  set.nodes.forEach(([kind, labelField, rawField], index) => {
+    if (index > 0) {
+      summary.append(el("span", "relationship-arrow", "->"));
+    }
+    const node = el("span", "relationship-node", displayNode(row, kind, labelField, rawField));
+    summary.append(node);
+  });
+
+  line.append(summary);
+
+  const meta = el("div", "row-details");
+  (set.meta || []).forEach((field) => {
+    if (row[field]) meta.append(badge(`${field}: ${row[field]}`));
+  });
+  if (meta.childNodes.length) {
+    line.append(meta);
+  }
+
+  if (appState.showRawIds) {
+    const raw = el("div", "raw-identifiers");
+    set.nodes.forEach(([kind, , rawField]) => {
+      if (row[rawField]) {
+        raw.append(el("span", "", `${kind} ${rawField}: ${row[rawField]}`));
+      }
+    });
+    if (raw.childNodes.length) {
+      line.append(raw);
+    }
+  }
+
+  return line;
+}
+
+function displayNode(row, kind, labelField, rawField) {
+  return row[labelField] || technicalFallback(kind, row[rawField]);
 }
 
 function renderList(targetId, data, mapper) {
@@ -566,6 +673,52 @@ function el(tag, className, text) {
 
 function badge(text) {
   return el("span", "badge", text);
+}
+
+function rawBadges(pairs) {
+  return pairs.filter(([, value]) => Boolean(value)).map(([label, value]) => `${label}: ${value}`);
+}
+
+function entitySubtitle(item, title) {
+  if (appState.showRawIds) {
+    return item.entity_id;
+  }
+  if (title === entityFallback(item.entity_id)) {
+    return "No friendly label available";
+  }
+  return [item.domain, item.integration_label, item.area_label].filter(Boolean).join(" / ");
+}
+
+function entityFallback(entityId) {
+  if (!entityId) {
+    return "Unnamed entity";
+  }
+  return `Entity: ${compactIdentifier(entityId)}`;
+}
+
+function technicalFallback(kind, identifier) {
+  if (!identifier) {
+    return `Unnamed ${kind.toLowerCase()}`;
+  }
+  return `${kind} (${identifierSuffix(identifier)})`;
+}
+
+function identifierSuffix(identifier) {
+  const text = String(identifier);
+  return text.length <= 8 ? text : `...${text.slice(-8)}`;
+}
+
+function compactIdentifier(identifier, maxLength = 48) {
+  const text = String(identifier || "");
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, 24)}...${text.slice(-16)}`;
+}
+
+function humanizeIdentifier(identifier) {
+  const text = String(identifier || "").replace(/[_\-.]/g, " ").trim();
+  return text ? text.replace(/\b\w/g, (letter) => letter.toUpperCase()) : "Integration";
 }
 
 function formatValue(value) {
