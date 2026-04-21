@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2
+
+- Replaced the iframe panel registration with Home Assistant's native custom panel registration.
+- Converted the frontend to a custom element JavaScript module that receives the Home Assistant `hass` object.
+- Switched protected JSON requests from raw same-origin `fetch` to `hass.callApi`.
+- Removed the unused panel HTML request path while keeping the existing no-spam 401/403 failure state.
+- Kept all real JSON endpoints authenticated and admin-only.
+- Bumped the integration version to `0.2.2`.
+
 ## 0.2.1
 
 - Removed blocking per-request `panel.html` file reads by loading and preparing the panel HTML once during setup.

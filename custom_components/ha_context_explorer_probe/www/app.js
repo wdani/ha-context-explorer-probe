@@ -1,4 +1,6 @@
-const API_BASE = "/api/ha_context_explorer_probe";
+const API_PATH_BASE = "ha_context_explorer_probe";
+const APP_VERSION = "0.2.2";
+const STATIC_BASE = "/local/ha_context_explorer_probe";
 const SCOPES = ["overview", "entities", "devices", "areas", "integrations", "relationships"];
 const RELATIONSHIP_SETS = [
   ["entity_to_device", "Entity to device", ["entity_id", "device_id"]],
@@ -9,6 +11,10 @@ const RELATIONSHIP_SETS = [
 ];
 
 const appState = {
+  host: null,
+  root: null,
+  hass: null,
+  initialized: false,
   activeScope: "overview",
   data: {},
   loading: {},
@@ -17,21 +23,160 @@ const appState = {
   entityDomain: "",
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-  bindTabs();
-  bindEntityFilters();
-  loadScope("overview");
-});
+class HAContextExplorerProbePanel extends HTMLElement {
+  set hass(hass) {
+    appState.hass = hass;
+    if (appState.initialized && !appState.data.overview && !appState.loading.overview) {
+      loadScope("overview");
+    }
+  }
+
+  set narrow(value) {
+    this.toggleAttribute("narrow", Boolean(value));
+  }
+
+  set panel(value) {
+    this._panel = value;
+  }
+
+  set route(value) {
+    this._route = value;
+  }
+
+  connectedCallback() {
+    if (!this.shadowRoot) {
+      this.attachShadow({ mode: "open" });
+    }
+
+    if (appState.host !== this) {
+      appState.host = this;
+      appState.root = this.shadowRoot;
+      appState.root.innerHTML = shellHtml();
+      bindTabs();
+      bindEntityFilters();
+      appState.initialized = true;
+    }
+
+    if (appState.hass) {
+      loadScope("overview");
+    } else {
+      setStatus("Waiting", "Waiting for Home Assistant panel context");
+    }
+  }
+}
+
+customElements.define("ha-context-explorer-probe-panel", HAContextExplorerProbePanel);
+
+function shellHtml() {
+  return `
+    <link rel="stylesheet" href="${STATIC_BASE}/styles.css?v=${APP_VERSION}" />
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Context Explorer Probe</p>
+          <h1>Home Assistant Context</h1>
+        </div>
+        <div class="status-chip" aria-live="polite">
+          <span id="data-state-label">Loading</span>
+          <small id="data-state-detail">Preparing data views</small>
+        </div>
+      </header>
+
+      <nav class="tabbar" aria-label="Explorer views">
+        <button class="tab-button active" type="button" data-scope="overview">Overview</button>
+        <button class="tab-button" type="button" data-scope="entities">Entities</button>
+        <button class="tab-button" type="button" data-scope="devices">Devices</button>
+        <button class="tab-button" type="button" data-scope="areas">Areas</button>
+        <button class="tab-button" type="button" data-scope="integrations">Integrations</button>
+        <button class="tab-button" type="button" data-scope="relationships">Relationships</button>
+      </nav>
+
+      <section class="auth-notice" id="auth-notice" hidden aria-live="polite"></section>
+
+      <main class="workspace">
+        <section class="view active" id="view-overview">
+          <div class="section-heading">
+            <h2>Overview</h2>
+            <span class="version">v${APP_VERSION}</span>
+          </div>
+          <div class="metric-grid" id="overview-counts" data-loading-target>Loading</div>
+          <div class="two-column">
+            <section>
+              <h3>Warnings</h3>
+              <div class="stack" id="overview-warnings">Loading</div>
+            </section>
+            <section>
+              <h3>Future scopes</h3>
+              <div class="stack" id="future-scopes">Loading</div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="view-entities">
+          <div class="section-heading">
+            <h2>Entities</h2>
+            <span class="count-label" id="entities-count">0 items</span>
+          </div>
+          <div class="toolbar">
+            <label>
+              <span>Search</span>
+              <input id="entities-search" type="search" autocomplete="off" />
+            </label>
+            <label>
+              <span>Domain</span>
+              <select id="entities-domain">
+                <option value="">All domains</option>
+              </select>
+            </label>
+          </div>
+          <div class="list" id="entities-list" data-loading-target>Loading</div>
+        </section>
+
+        <section class="view" id="view-devices">
+          <div class="section-heading">
+            <h2>Devices</h2>
+            <span class="count-label" id="devices-count">0 items</span>
+          </div>
+          <div class="list" id="devices-list" data-loading-target>Loading</div>
+        </section>
+
+        <section class="view" id="view-areas">
+          <div class="section-heading">
+            <h2>Areas</h2>
+            <span class="count-label" id="areas-count">0 items</span>
+          </div>
+          <div class="list" id="areas-list" data-loading-target>Loading</div>
+        </section>
+
+        <section class="view" id="view-integrations">
+          <div class="section-heading">
+            <h2>Integrations</h2>
+            <span class="count-label" id="integrations-count">0 items</span>
+          </div>
+          <div class="list" id="integrations-list" data-loading-target>Loading</div>
+        </section>
+
+        <section class="view" id="view-relationships">
+          <div class="section-heading">
+            <h2>Relationships</h2>
+          </div>
+          <div class="metric-grid" id="relationships-summary" data-loading-target>Loading</div>
+          <div class="relationship-lists" id="relationships-lists"></div>
+        </section>
+      </main>
+    </div>
+  `;
+}
 
 function bindTabs() {
-  document.querySelectorAll("[data-scope]").forEach((button) => {
+  appState.root.querySelectorAll("[data-scope]").forEach((button) => {
     button.addEventListener("click", () => activateScope(button.dataset.scope));
   });
 }
 
 function bindEntityFilters() {
-  const search = document.getElementById("entities-search");
-  const domain = document.getElementById("entities-domain");
+  const search = byId("entities-search");
+  const domain = byId("entities-domain");
 
   search.addEventListener("input", () => {
     appState.entitySearch = search.value.trim().toLowerCase();
@@ -50,10 +195,10 @@ function activateScope(scope) {
   }
 
   appState.activeScope = scope;
-  document.querySelectorAll("[data-scope]").forEach((button) => {
+  appState.root.querySelectorAll("[data-scope]").forEach((button) => {
     button.classList.toggle("active", button.dataset.scope === scope);
   });
-  document.querySelectorAll(".view").forEach((view) => {
+  appState.root.querySelectorAll(".view").forEach((view) => {
     view.classList.toggle("active", view.id === `view-${scope}`);
   });
 
@@ -72,17 +217,18 @@ async function loadScope(scope) {
     return;
   }
 
+  if (!appState.hass || typeof appState.hass.callApi !== "function") {
+    blockProtectedData("The Home Assistant panel context did not provide an authenticated API client.");
+    renderScope(scope);
+    return;
+  }
+
   appState.loading[scope] = true;
   setStatus("Loading", "Reading Home Assistant data");
   setViewLoading(scope);
 
   try {
-    const response = await fetch(`${API_BASE}/${scope}`, { credentials: "same-origin" });
-    if (!response.ok) {
-      throw new ApiError(response.status, response.statusText);
-    }
-
-    appState.data[scope] = await response.json();
+    appState.data[scope] = await appState.hass.callApi("GET", `${API_PATH_BASE}/${scope}`);
     setStatus("Connected", "Admin data endpoint available");
     clearGlobalNotice();
   } catch (error) {
@@ -312,7 +458,7 @@ function renderList(targetId, data, mapper) {
 }
 
 function refreshDomainFilter(items) {
-  const select = document.getElementById("entities-domain");
+  const select = byId("entities-domain");
   const current = select.value;
   const domains = [...new Set(items.map((item) => item.domain).filter(Boolean))].sort();
 
@@ -337,7 +483,7 @@ function renderWarnings(targetId, warnings) {
 }
 
 function setViewLoading(scope) {
-  const view = document.getElementById(`view-${scope}`);
+  const view = byId(`view-${scope}`);
   const list = view.querySelector("[data-loading-target]");
   if (list) {
     list.textContent = "Loading";
@@ -345,8 +491,8 @@ function setViewLoading(scope) {
 }
 
 function setStatus(label, detail) {
-  document.getElementById("data-state-label").textContent = label;
-  document.getElementById("data-state-detail").textContent = detail;
+  byId("data-state-label").textContent = label;
+  byId("data-state-detail").textContent = detail;
 }
 
 function blockProtectedData(message) {
@@ -361,14 +507,14 @@ function blockProtectedData(message) {
 function authBlockedPayload(scope) {
   return {
     scope,
-    error: `The panel shell loaded, but protected Home Assistant data could not be accessed. ${appState.authBlocked || ""}`.trim(),
+    error: `The native panel loaded, but protected Home Assistant data could not be accessed. ${appState.authBlocked || ""}`.trim(),
     items: [],
     warnings: [],
   };
 }
 
 function renderGlobalAuthFailure(message) {
-  const notice = document.getElementById("auth-notice");
+  const notice = byId("auth-notice");
   notice.hidden = false;
   notice.textContent = "";
   notice.append(el("strong", "", "Protected data unavailable"));
@@ -376,19 +522,19 @@ function renderGlobalAuthFailure(message) {
     el(
       "p",
       "",
-      `The panel iframe loaded successfully, but the current Home Assistant auth context was not accepted by the admin-only JSON endpoints. ${message}`
+      `The native Home Assistant panel loaded, but the current frontend auth context was not accepted by the admin-only JSON endpoints. ${message}`
     )
   );
 }
 
 function clearGlobalNotice() {
-  const notice = document.getElementById("auth-notice");
+  const notice = byId("auth-notice");
   notice.hidden = true;
   notice.textContent = "";
 }
 
 function setCountText(id, count, total) {
-  const target = document.getElementById(id);
+  const target = byId(id);
   if (!target) return;
   target.textContent = total === undefined ? `${formatValue(count)} items` : `${formatValue(count)} of ${formatValue(total)} items`;
 }
@@ -402,9 +548,13 @@ function setEmpty(targetId, title, body) {
 }
 
 function clearById(id) {
-  const target = document.getElementById(id);
+  const target = byId(id);
   target.textContent = "";
   return target;
+}
+
+function byId(id) {
+  return appState.root.getElementById(id);
 }
 
 function el(tag, className, text) {
@@ -426,33 +576,29 @@ function formatValue(value) {
 }
 
 function errorMessage(error) {
-  if (error instanceof ApiError && error.status === 401) {
-    return "401 unauthorized. The Home Assistant admin auth context did not reach this endpoint.";
+  if (isAuthError(error)) {
+    const status = error.status || error.statusCode || "auth";
+    return `${status} unauthorized or forbidden. The Home Assistant frontend auth context did not reach this endpoint as an admin request.`;
   }
-  if (error instanceof ApiError && error.status === 403) {
-    return "403 forbidden. This endpoint only returns real data to Home Assistant admin users.";
-  }
-  if (error instanceof ApiError) {
-    return `${error.status} ${error.statusText || "HTTP error"}`;
+  if (error instanceof Error) {
+    return error.message;
   }
   return String(error);
 }
 
 function shortError(error) {
-  if (error instanceof ApiError) {
-    return `${error.status} ${error.statusText || "HTTP error"}`;
+  if (isAuthError(error)) {
+    return "Protected request failed";
+  }
+  if (error instanceof Error) {
+    return error.message;
   }
   return "Request failed";
 }
 
 function isAuthError(error) {
-  return error instanceof ApiError && (error.status === 401 || error.status === 403);
-}
-
-class ApiError extends Error {
-  constructor(status, statusText) {
-    super(`${status} ${statusText}`);
-    this.status = status;
-    this.statusText = statusText;
-  }
+  const status = error?.status || error?.statusCode;
+  const code = String(error?.code || "").toLowerCase();
+  const message = String(error?.message || error || "").toLowerCase();
+  return status === 401 || status === 403 || code.includes("unauthorized") || message.includes("unauthorized");
 }

@@ -2,6 +2,6 @@
 
 DOMAIN = "ha_context_explorer_probe"
 NAME = "Context Explorer Probe"
-VERSION = "0.2.1"
-PANEL_URL = f"/{DOMAIN}/panel"
+PANEL_ELEMENT = "ha-context-explorer-probe-panel"
+VERSION = "0.2.2"
 STATIC_URL = f"/local/{DOMAIN}"

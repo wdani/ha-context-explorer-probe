@@ -120,7 +120,7 @@ def build_overview_payload(hass: HomeAssistant) -> dict[str, Any]:
         [
             "Real data endpoints require authenticated Home Assistant admin access.",
             "Privacy masking is best-effort and is not guaranteed anonymization.",
-            "The panel shell may load while JSON data remains unavailable if the iframe auth context cannot reach the API.",
+            "The native panel may load while JSON data remains unavailable if the frontend auth context cannot reach the API.",
         ]
     )
 

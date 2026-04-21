@@ -1,5 +1,102 @@
 # Review Bundle
 
+## 0.2.2 follow-up review
+
+Task: `resolve-panel-auth-bridge`
+
+Result: native panel auth bridge candidate implemented; live HA behavior still must be confirmed in the user's runtime.
+
+- Replaced iframe built-in panel registration with `panel_custom.async_register_panel`.
+- Registered `ha-context-explorer-probe-panel` as a JavaScript module custom element.
+- Frontend now uses `hass.callApi("GET", "ha_context_explorer_probe/<scope>")` for protected JSON data.
+- Removed the unused `panel.html` request path.
+- No token scraping or browser storage auth assumptions were added.
+- Real JSON endpoints still set `requires_auth = True`.
+- Real JSON endpoints still enforce admin access with `request["hass_user"].is_admin`.
+- The frontend keeps the one-shot protected-data failure state if the custom panel auth context is still rejected.
+- This local environment does not include Home Assistant, so live Overview/data-tab loading and invalid-auth log behavior could not be verified here.
+
+### 0.2.2 validation commands
+
+Backend syntax:
+
+```powershell
+python -c "import ast, pathlib; files=[pathlib.Path('custom_components/ha_context_explorer_probe/__init__.py'), pathlib.Path('custom_components/ha_context_explorer_probe/api.py'), pathlib.Path('custom_components/ha_context_explorer_probe/privacy.py'), pathlib.Path('custom_components/ha_context_explorer_probe/config_flow.py'), pathlib.Path('custom_components/ha_context_explorer_probe/const.py')]; [ast.parse(path.read_text(encoding='utf-8'), filename=str(path)) for path in files]; print('AST syntax OK for', len(files), 'backend files')"
+```
+
+Result:
+
+```text
+AST syntax OK for 5 backend files
+```
+
+Manifest JSON:
+
+```powershell
+python -c "import json, pathlib; json.loads(pathlib.Path('custom_components/ha_context_explorer_probe/manifest.json').read_text(encoding='utf-8')); print('manifest JSON OK')"
+```
+
+Result:
+
+```text
+manifest JSON OK
+```
+
+Safety scan:
+
+```powershell
+Get-ChildItem -Recurse -File -Path custom_components\ha_context_explorer_probe | Select-String -Pattern "def post|def put|def patch|def delete|hass\.services\.async_call|async_register_service|register_admin_service|\.storage|secrets|hassTokens|localStorage|sessionStorage|Authorization|Bearer"
+```
+
+Result:
+
+```text
+No matches.
+```
+
+Panel/auth bridge scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\__init__.py,custom_components\ha_context_explorer_probe\www\app.js | Select-String -Pattern "panel_custom|async_register_panel|embed_iframe=False|hass.callApi|fetch\(|localStorage|sessionStorage|hassTokens|Authorization|Bearer"
+```
+
+Result:
+
+```text
+Found panel_custom registration, embed_iframe=False, and hass.callApi.
+No fetch(), localStorage, sessionStorage, hassTokens, Authorization, or Bearer matches.
+```
+
+JavaScript module parse:
+
+```powershell
+node --check custom_components\ha_context_explorer_probe\www\app.js
+```
+
+Result:
+
+```text
+Not completed in this sandbox. node.exe is blocked by the local execution environment even when escalation is requested.
+```
+
+Home Assistant runtime:
+
+```powershell
+python -c "import importlib.util; print('homeassistant available:', importlib.util.find_spec('homeassistant') is not None)"
+```
+
+Result:
+
+```text
+homeassistant available: False
+```
+
+Live HA validation still needs to be run in the user's Home Assistant instance:
+
+- whether Overview now loads real data
+- whether the invalid-auth warning disappeared
+- whether all protected tabs load
+
 ## 0.2.1 follow-up review
 
 Task: `fix-panel-io-auth`
@@ -93,7 +190,7 @@ No matches.
 
 ## Scope
 
-Phase 2 implemented HA Context Explorer Probe `0.2.0` as the first real read-only explorer slice. The current corrective version is `0.2.1`.
+Phase 2 implemented HA Context Explorer Probe `0.2.0` as the first real read-only explorer slice. The current corrective version is `0.2.2`.
 
 Implemented real data scopes:
 

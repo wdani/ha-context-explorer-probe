@@ -1,5 +1,23 @@
 # AI Change History
 
+## 0.2.2
+
+Focused follow-up for the panel-to-API auth bridge.
+
+Key changes:
+
+- Replaced iframe registration with Home Assistant `panel_custom` registration.
+- Converted the frontend app into `ha-context-explorer-probe-panel`, a JavaScript module custom element.
+- Switched protected data loading to `hass.callApi`, using the Home Assistant frontend auth context.
+- Removed the unused `panel.html` request path.
+- Kept admin-only backend endpoint checks unchanged.
+
+Honest current state:
+
+- This is the smallest safe bridge candidate because Home Assistant custom panels receive the `hass` object and the frontend manages authentication for panel code.
+- Local static validation cannot prove live Home Assistant behavior in this environment.
+- If auth still fails in a runtime, the UI keeps the one-shot protected-data failure state and endpoint auth remains protected.
+
 ## 0.2.1
 
 Focused follow-up for live-runtime panel issues.
