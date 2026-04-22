@@ -23,7 +23,7 @@ Repository files are the project source of truth. Local reference material under
 
 ## Current phase
 
-Version `0.3.0` contains the first real explorer slice plus focused panel I/O, native custom-panel auth bridge fixes, privacy-first display refinement, and the first logic/reference starter slice:
+Version `0.3.1` contains the first real explorer slice plus focused panel I/O, native custom-panel auth bridge fixes, privacy-first display refinement, the first logic/reference starter slice, and native panel lifecycle hardening:
 
 - overview
 - entities
@@ -34,5 +34,7 @@ Version `0.3.0` contains the first real explorer slice plus focused panel I/O, n
 - logic
 
 The logic slice currently reads only canonical `automations.yaml` and `scripts.yaml` for best-effort automation/script/entity references. It exposes source coverage directly so users can see parsed, missing, unsupported, failed, and partial states.
+
+The 0.3.1 lifecycle hardening is a frontend robustness fix for Home Assistant internal navigation, reconnect, and remount cases. It does not expand data scope or change endpoint security.
 
 Future scope may include floors, labels, dashboards, services, package/include logic layouts, full template dependency coverage, graph visualization, and deeper execution/context modeling, but those remain planned and unavailable in this phase.

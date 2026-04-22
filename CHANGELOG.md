@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1
+
+- Hardened the native custom panel lifecycle against Home Assistant internal navigation, remount, and reconnect cases.
+- Rebuilt or rebound the active shadow-root shell without relying on stale global host/root references.
+- Cleared stale frontend host/root pointers when the panel element disconnects while preserving session data and the raw-ID toggle state.
+- Guarded custom element registration so repeated module evaluation does not throw a duplicate-definition error.
+- Added safe UI guards for async data responses that complete while the panel is detached.
+- Added a visible lifecycle fallback instead of leaving a blank panel if shell restoration fails.
+- Kept all existing scopes, authenticated/admin-only GET endpoints, source coverage semantics, and read-only behavior unchanged.
+- Bumped the integration version to `0.3.1`.
+
 ## 0.3.0
 
 - Added the first read-only `logic` scope for automation/script reference exploration.

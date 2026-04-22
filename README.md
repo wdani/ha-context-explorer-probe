@@ -14,11 +14,11 @@ This is **not** a continuation of `ha-ai-context-exporter`. It is a clean probe 
 
 ## Current version
 
-`0.3.0`
+`0.3.1`
 
 ## Implemented scopes
 
-The current `0.3.0` branch includes the first real read-only explorer slice plus the first logic/reference starter slice:
+The current `0.3.1` branch includes the first real read-only explorer slice, the first logic/reference starter slice, and a focused native-panel lifecycle hardening fix:
 
 - Overview
 - Entities
@@ -61,6 +61,8 @@ Version `0.2.3` refines the current views to prefer user-facing labels over raw 
 
 Version `0.3.0` adds the first logic/reference starter slice. The Logic tab shows source coverage directly, including parsed canonical files, missing canonical files, intentionally unsupported source types, parse failures, and partial parsing. This is a starter reference extractor, not a full Home Assistant logic graph or complete template dependency engine.
 
+Version `0.3.1` hardens the native custom panel frontend against Home Assistant internal navigation, reconnect, and remount cases that could otherwise leave a blank panel until a full browser reload. It does not change endpoint auth, data shaping, source readers, or read-only behavior.
+
 ## Safety boundaries
 
 The project remains strict read-only:
@@ -83,7 +85,7 @@ This masking is best-effort. It is not guaranteed anonymization, and users shoul
 
 ## Future scopes
 
-Future phases may explore floors, labels, dashboards, services, and deeper logic relationships. Floors, labels, dashboards, service exploration, graph visualization, execution tracing, and full template dependency coverage are not implemented in `0.3.0`.
+Future phases may explore floors, labels, dashboards, services, and deeper logic relationships. Floors, labels, dashboards, service exploration, graph visualization, execution tracing, and full template dependency coverage are not implemented in `0.3.1`.
 
 The current logic slice is intentionally partial. Future work may broaden coverage to packages, include-based layouts, dashboards, labels, floors, services, richer template analysis, graph visualization, and deeper execution/context modeling.
 

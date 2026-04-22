@@ -1,5 +1,6 @@
 const API_PATH_BASE = "ha_context_explorer_probe";
-const APP_VERSION = "0.3.0";
+const APP_VERSION = "0.3.1";
+const PANEL_ELEMENT = "ha-context-explorer-probe-panel";
 const STATIC_BASE = "/local/ha_context_explorer_probe";
 const SCOPES = ["overview", "entities", "devices", "areas", "integrations", "relationships", "logic"];
 const RELATIONSHIP_SETS = [
@@ -71,8 +72,17 @@ const SOURCE_STATUS_LABELS = {
 class HAContextExplorerProbePanel extends HTMLElement {
   set hass(hass) {
     appState.hass = hass;
-    if (appState.initialized && !appState.data.overview && !appState.loading.overview) {
-      loadScope("overview");
+    if (appState.host !== this || !appState.root || !appState.initialized) {
+      return;
+    }
+
+    const scope = appState.activeScope || "overview";
+    if (!appState.data[scope] && !appState.loading[scope]) {
+      loadScope(scope);
+    } else if (appState.loading[scope]) {
+      loadScope(scope);
+    } else {
+      renderScope(scope);
     }
   }
 
@@ -89,29 +99,107 @@ class HAContextExplorerProbePanel extends HTMLElement {
   }
 
   connectedCallback() {
-    if (!this.shadowRoot) {
-      this.attachShadow({ mode: "open" });
-    }
-
-    if (appState.host !== this) {
+    try {
+      const root = this.shadowRoot || this.attachShadow({ mode: "open" });
       appState.host = this;
-      appState.root = this.shadowRoot;
-      appState.root.innerHTML = shellHtml();
-      bindTabs();
-      bindEntityFilters();
-      bindRawToggle();
-      appState.initialized = true;
-    }
+      appState.root = root;
 
-    if (appState.hass) {
-      loadScope("overview");
-    } else {
-      setStatus("Waiting", "Waiting for Home Assistant panel context");
+      if (!isShellReady(root)) {
+        initializeShell(root);
+      } else {
+        appState.initialized = true;
+        syncShellState();
+      }
+
+      if (appState.hass) {
+        loadScope(appState.activeScope || "overview");
+      } else {
+        setStatus("Waiting", "Waiting for Home Assistant panel context");
+      }
+    } catch (error) {
+      renderLifecycleFailure(this, error);
+    }
+  }
+
+  disconnectedCallback() {
+    if (appState.host === this) {
+      appState.host = null;
+      appState.root = null;
+      appState.initialized = false;
     }
   }
 }
 
-customElements.define("ha-context-explorer-probe-panel", HAContextExplorerProbePanel);
+if (!customElements.get(PANEL_ELEMENT)) {
+  customElements.define(PANEL_ELEMENT, HAContextExplorerProbePanel);
+}
+
+function isShellReady(root) {
+  return Boolean(
+    root &&
+      root.__haContextExplorerProbeVersion === APP_VERSION &&
+      root.getElementById("view-overview") &&
+      root.getElementById("raw-id-toggle")
+  );
+}
+
+function initializeShell(root) {
+  appState.root = root;
+  root.innerHTML = shellHtml();
+  root.__haContextExplorerProbeVersion = APP_VERSION;
+  bindTabs();
+  bindEntityFilters();
+  bindRawToggle();
+  appState.initialized = true;
+  syncShellState();
+}
+
+function syncShellState() {
+  if (!appState.root) {
+    return;
+  }
+
+  const scope = appState.activeScope || "overview";
+  appState.root.querySelectorAll("[data-scope]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.scope === scope);
+  });
+  appState.root.querySelectorAll(".view").forEach((view) => {
+    view.classList.toggle("active", view.id === `view-${scope}`);
+  });
+
+  const search = byId("entities-search");
+  if (search) {
+    search.value = appState.entitySearch || "";
+  }
+
+  const rawToggle = byId("raw-id-toggle");
+  if (rawToggle) {
+    rawToggle.checked = appState.showRawIds;
+  }
+}
+
+function renderLifecycleFailure(host, error) {
+  const root = host.shadowRoot || host.attachShadow({ mode: "open" });
+  appState.host = host;
+  appState.root = root;
+  appState.initialized = false;
+  root.innerHTML = `
+    <link rel="stylesheet" href="${STATIC_BASE}/styles.css?v=${APP_VERSION}" />
+    <div class="app-shell lifecycle-fallback">
+      <section class="empty-state">
+        <strong>Panel could not be restored</strong>
+        <p>The Home Assistant panel shell loaded, but its frontend lifecycle failed before the explorer UI could be rebuilt.</p>
+        <p>Navigate away and back to retry the panel mount; reload the browser page if this fallback remains.</p>
+        <p id="lifecycle-error-detail"></p>
+      </section>
+    </div>
+  `;
+
+  const detail = root.getElementById("lifecycle-error-detail");
+  if (detail) {
+    detail.textContent = error instanceof Error ? error.message : String(error || "Unknown lifecycle error");
+  }
+}
 
 function shellHtml() {
   return `
@@ -253,6 +341,10 @@ function shellHtml() {
 }
 
 function bindTabs() {
+  if (!appState.root) {
+    return;
+  }
+
   appState.root.querySelectorAll("[data-scope]").forEach((button) => {
     button.addEventListener("click", () => activateScope(button.dataset.scope));
   });
@@ -261,6 +353,9 @@ function bindTabs() {
 function bindEntityFilters() {
   const search = byId("entities-search");
   const domain = byId("entities-domain");
+  if (!search || !domain) {
+    return;
+  }
 
   search.addEventListener("input", () => {
     appState.entitySearch = search.value.trim().toLowerCase();
@@ -274,7 +369,12 @@ function bindEntityFilters() {
 }
 
 function bindRawToggle() {
-  byId("raw-id-toggle").addEventListener("change", (event) => {
+  const toggle = byId("raw-id-toggle");
+  if (!toggle) {
+    return;
+  }
+
+  toggle.addEventListener("change", (event) => {
     appState.showRawIds = event.target.checked;
     renderScope(appState.activeScope);
   });
@@ -282,6 +382,9 @@ function bindRawToggle() {
 
 function activateScope(scope) {
   if (!SCOPES.includes(scope)) {
+    return;
+  }
+  if (!appState.root) {
     return;
   }
 
@@ -299,18 +402,32 @@ function activateScope(scope) {
 async function loadScope(scope) {
   if (appState.authBlocked) {
     appState.data[scope] = authBlockedPayload(scope);
-    renderScope(scope);
+    if (appState.root) {
+      renderScope(scope);
+    }
     return;
   }
 
-  if (appState.data[scope] || appState.loading[scope]) {
-    renderScope(scope);
+  if (appState.loading[scope]) {
+    if (appState.root) {
+      setStatus("Loading", "Reading Home Assistant data");
+      setViewLoading(scope);
+    }
+    return;
+  }
+
+  if (appState.data[scope]) {
+    if (appState.root) {
+      renderScope(scope);
+    }
     return;
   }
 
   if (!appState.hass || typeof appState.hass.callApi !== "function") {
     blockProtectedData("The Home Assistant panel context did not provide an authenticated API client.");
-    renderScope(scope);
+    if (appState.root) {
+      renderScope(scope);
+    }
     return;
   }
 
@@ -320,23 +437,33 @@ async function loadScope(scope) {
 
   try {
     appState.data[scope] = await appState.hass.callApi("GET", `${API_PATH_BASE}/${scope}`);
-    setStatus("Connected", "Admin data endpoint available");
-    clearGlobalNotice();
+    if (appState.root) {
+      setStatus("Connected", "Admin data endpoint available");
+      clearGlobalNotice();
+    }
   } catch (error) {
     const message = errorMessage(error);
     if (isAuthError(error)) {
       blockProtectedData(message);
     } else {
       appState.data[scope] = { error: message, items: [], warnings: [] };
-      setStatus("Unavailable", shortError(error));
+      if (appState.root) {
+        setStatus("Unavailable", shortError(error));
+      }
     }
   } finally {
     appState.loading[scope] = false;
-    renderScope(scope);
+    if (appState.root) {
+      renderScope(scope);
+    }
   }
 }
 
 function renderScope(scope) {
+  if (!appState.root) {
+    return;
+  }
+
   if (scope === "overview") {
     renderOverview();
   } else if (scope === "entities") {
@@ -554,7 +681,10 @@ function renderLogic() {
   }
 
   const counts = data.counts || {};
-  byId("logic-count").textContent = `${formatValue(counts.total_references)} refs across ${formatValue(counts.referenced_entities)} entities`;
+  const logicCount = byId("logic-count");
+  if (logicCount) {
+    logicCount.textContent = `${formatValue(counts.total_references)} refs across ${formatValue(counts.referenced_entities)} entities`;
+  }
 
   const summaryTarget = clearById("logic-summary");
   [
@@ -780,6 +910,10 @@ function renderList(targetId, data, mapper) {
 
 function refreshDomainFilter(items) {
   const select = byId("entities-domain");
+  if (!select) {
+    return;
+  }
+
   const current = select.value;
   const domains = [...new Set(items.map((item) => item.domain).filter(Boolean))].sort();
 
@@ -805,6 +939,10 @@ function renderWarnings(targetId, warnings) {
 
 function setViewLoading(scope) {
   const view = byId(`view-${scope}`);
+  if (!view) {
+    return;
+  }
+
   const list = view.querySelector("[data-loading-target]");
   if (list) {
     list.textContent = "Loading";
@@ -812,8 +950,14 @@ function setViewLoading(scope) {
 }
 
 function setStatus(label, detail) {
-  byId("data-state-label").textContent = label;
-  byId("data-state-detail").textContent = detail;
+  const labelTarget = byId("data-state-label");
+  const detailTarget = byId("data-state-detail");
+  if (!labelTarget || !detailTarget) {
+    return;
+  }
+
+  labelTarget.textContent = label;
+  detailTarget.textContent = detail;
 }
 
 function blockProtectedData(message) {
@@ -821,8 +965,10 @@ function blockProtectedData(message) {
   SCOPES.forEach((scope) => {
     appState.data[scope] = authBlockedPayload(scope);
   });
-  setStatus("Auth required", "Protected data did not load");
-  renderGlobalAuthFailure(message);
+  if (appState.root) {
+    setStatus("Auth required", "Protected data did not load");
+    renderGlobalAuthFailure(message);
+  }
 }
 
 function authBlockedPayload(scope) {
@@ -836,6 +982,10 @@ function authBlockedPayload(scope) {
 
 function renderGlobalAuthFailure(message) {
   const notice = byId("auth-notice");
+  if (!notice) {
+    return;
+  }
+
   notice.hidden = false;
   notice.textContent = "";
   notice.append(el("strong", "", "Protected data unavailable"));
@@ -850,6 +1000,10 @@ function renderGlobalAuthFailure(message) {
 
 function clearGlobalNotice() {
   const notice = byId("auth-notice");
+  if (!notice) {
+    return;
+  }
+
   notice.hidden = true;
   notice.textContent = "";
 }
@@ -870,12 +1024,16 @@ function setEmpty(targetId, title, body) {
 
 function clearById(id) {
   const target = byId(id);
+  if (!target) {
+    return document.createElement("div");
+  }
+
   target.textContent = "";
   return target;
 }
 
 function byId(id) {
-  return appState.root.getElementById(id);
+  return appState.root ? appState.root.getElementById(id) : null;
 }
 
 function el(tag, className, text) {

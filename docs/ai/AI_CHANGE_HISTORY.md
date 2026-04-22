@@ -1,5 +1,22 @@
 # AI Change History
 
+## 0.3.1
+
+Focused native custom-panel lifecycle robustness pass.
+
+Key changes:
+
+- Made panel shell initialization reentrant for reconnect, remount, and internal Home Assistant navigation cases.
+- Stopped relying on stale global host/root references after the custom element disconnects.
+- Guarded custom element registration against duplicate-definition errors if the frontend module is evaluated again.
+- Added UI guards so async protected-data responses that finish while the panel is detached do not throw into a missing shadow root.
+- Added a visible lifecycle fallback if shell restoration fails before the explorer UI can be rebuilt.
+
+Important boundaries kept:
+
+- No endpoint URLs, auth checks, admin-only enforcement, backend data shaping, source readers, service calls, mutation handlers, config writes, `.storage` access, secret access, token scraping, or persistent preferences changed.
+- This is a lifecycle bugfix, not HACS/update-channel work and not an expansion of the 0.3.0 logic starter slice.
+
 ## 0.3.0
 
 First logic/reference starter slice for Home Assistant context understanding.

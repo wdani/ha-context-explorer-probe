@@ -36,6 +36,16 @@ select {
   padding: 18px;
 }
 
+.lifecycle-fallback {
+  display: grid;
+  place-items: start center;
+}
+
+.lifecycle-fallback .empty-state {
+  max-width: 720px;
+  width: 100%;
+}
+
 .topbar {
   align-items: center;
   display: flex;
