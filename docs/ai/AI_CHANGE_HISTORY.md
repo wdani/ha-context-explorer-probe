@@ -1,5 +1,43 @@
 # AI Change History
 
+## 0.3.1
+
+Focused native custom-panel lifecycle robustness pass.
+
+Key changes:
+
+- Made panel shell initialization reentrant for reconnect, remount, and internal Home Assistant navigation cases.
+- Stopped relying on stale global host/root references after the custom element disconnects.
+- Guarded custom element registration against duplicate-definition errors if the frontend module is evaluated again.
+- Added UI guards so async protected-data responses that finish while the panel is detached do not throw into a missing shadow root.
+- Added a visible lifecycle fallback if shell restoration fails before the explorer UI can be rebuilt.
+
+Important boundaries kept:
+
+- No endpoint URLs, auth checks, admin-only enforcement, backend data shaping, source readers, service calls, mutation handlers, config writes, `.storage` access, secret access, token scraping, or persistent preferences changed.
+- This is a lifecycle bugfix, not HACS/update-channel work and not an expansion of the 0.3.0 logic starter slice.
+
+## 0.3.0
+
+First logic/reference starter slice for Home Assistant context understanding.
+
+Key changes:
+
+- Added authenticated admin-only `GET /logic`.
+- Added read-only parsing for canonical `automations.yaml` and `scripts.yaml`.
+- Added best-effort entity and script reference extraction.
+- Added compact automation, script, and entity usage summaries.
+- Added structured `source_coverage` as the primary source-state surface.
+- Added a Logic tab with visible source coverage and starter-slice exclusions.
+
+Important boundaries kept:
+
+- No service calls, mutation handlers, state changes, config writes, `.storage` access, secret access, token scraping, or persistent preferences were introduced.
+- Packages, include-based layouts, dashboards, storage-only editor internals, full template dependency coverage, graph visualization, and execution tracing remain out of scope.
+- Partial parsing returns successfully extracted items whenever possible and marks the affected source as partial or failed.
+- Source identifiers are compact basenames such as `automations.yaml` and `scripts.yaml`, not absolute config paths.
+- This is not a full Home Assistant logic graph.
+
 ## 0.2.3
 
 Privacy/display refinement for the existing implemented scopes.

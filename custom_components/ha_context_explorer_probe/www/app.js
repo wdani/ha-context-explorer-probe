@@ -1,7 +1,8 @@
 const API_PATH_BASE = "ha_context_explorer_probe";
-const APP_VERSION = "0.2.3";
+const APP_VERSION = "0.3.1";
+const PANEL_ELEMENT = "ha-context-explorer-probe-panel";
 const STATIC_BASE = "/local/ha_context_explorer_probe";
-const SCOPES = ["overview", "entities", "devices", "areas", "integrations", "relationships"];
+const SCOPES = ["overview", "entities", "devices", "areas", "integrations", "relationships", "logic"];
 const RELATIONSHIP_SETS = [
   {
     key: "entity_to_device",
@@ -60,11 +61,28 @@ const appState = {
   showRawIds: false,
 };
 
+const SOURCE_STATUS_LABELS = {
+  parsed_available: "Parsed and available",
+  missing: "Missing",
+  unsupported_starter_slice: "Unsupported in starter",
+  parse_failed: "Parse failed",
+  partially_parsed: "Partially parsed",
+};
+
 class HAContextExplorerProbePanel extends HTMLElement {
   set hass(hass) {
     appState.hass = hass;
-    if (appState.initialized && !appState.data.overview && !appState.loading.overview) {
-      loadScope("overview");
+    if (appState.host !== this || !appState.root || !appState.initialized) {
+      return;
+    }
+
+    const scope = appState.activeScope || "overview";
+    if (!appState.data[scope] && !appState.loading[scope]) {
+      loadScope(scope);
+    } else if (appState.loading[scope]) {
+      loadScope(scope);
+    } else {
+      renderScope(scope);
     }
   }
 
@@ -81,29 +99,107 @@ class HAContextExplorerProbePanel extends HTMLElement {
   }
 
   connectedCallback() {
-    if (!this.shadowRoot) {
-      this.attachShadow({ mode: "open" });
-    }
-
-    if (appState.host !== this) {
+    try {
+      const root = this.shadowRoot || this.attachShadow({ mode: "open" });
       appState.host = this;
-      appState.root = this.shadowRoot;
-      appState.root.innerHTML = shellHtml();
-      bindTabs();
-      bindEntityFilters();
-      bindRawToggle();
-      appState.initialized = true;
-    }
+      appState.root = root;
 
-    if (appState.hass) {
-      loadScope("overview");
-    } else {
-      setStatus("Waiting", "Waiting for Home Assistant panel context");
+      if (!isShellReady(root)) {
+        initializeShell(root);
+      } else {
+        appState.initialized = true;
+        syncShellState();
+      }
+
+      if (appState.hass) {
+        loadScope(appState.activeScope || "overview");
+      } else {
+        setStatus("Waiting", "Waiting for Home Assistant panel context");
+      }
+    } catch (error) {
+      renderLifecycleFailure(this, error);
+    }
+  }
+
+  disconnectedCallback() {
+    if (appState.host === this) {
+      appState.host = null;
+      appState.root = null;
+      appState.initialized = false;
     }
   }
 }
 
-customElements.define("ha-context-explorer-probe-panel", HAContextExplorerProbePanel);
+if (!customElements.get(PANEL_ELEMENT)) {
+  customElements.define(PANEL_ELEMENT, HAContextExplorerProbePanel);
+}
+
+function isShellReady(root) {
+  return Boolean(
+    root &&
+      root.__haContextExplorerProbeVersion === APP_VERSION &&
+      root.getElementById("view-overview") &&
+      root.getElementById("raw-id-toggle")
+  );
+}
+
+function initializeShell(root) {
+  appState.root = root;
+  root.innerHTML = shellHtml();
+  root.__haContextExplorerProbeVersion = APP_VERSION;
+  bindTabs();
+  bindEntityFilters();
+  bindRawToggle();
+  appState.initialized = true;
+  syncShellState();
+}
+
+function syncShellState() {
+  if (!appState.root) {
+    return;
+  }
+
+  const scope = appState.activeScope || "overview";
+  appState.root.querySelectorAll("[data-scope]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.scope === scope);
+  });
+  appState.root.querySelectorAll(".view").forEach((view) => {
+    view.classList.toggle("active", view.id === `view-${scope}`);
+  });
+
+  const search = byId("entities-search");
+  if (search) {
+    search.value = appState.entitySearch || "";
+  }
+
+  const rawToggle = byId("raw-id-toggle");
+  if (rawToggle) {
+    rawToggle.checked = appState.showRawIds;
+  }
+}
+
+function renderLifecycleFailure(host, error) {
+  const root = host.shadowRoot || host.attachShadow({ mode: "open" });
+  appState.host = host;
+  appState.root = root;
+  appState.initialized = false;
+  root.innerHTML = `
+    <link rel="stylesheet" href="${STATIC_BASE}/styles.css?v=${APP_VERSION}" />
+    <div class="app-shell lifecycle-fallback">
+      <section class="empty-state">
+        <strong>Panel could not be restored</strong>
+        <p>The Home Assistant panel shell loaded, but its frontend lifecycle failed before the explorer UI could be rebuilt.</p>
+        <p>Navigate away and back to retry the panel mount; reload the browser page if this fallback remains.</p>
+        <p id="lifecycle-error-detail"></p>
+      </section>
+    </div>
+  `;
+
+  const detail = root.getElementById("lifecycle-error-detail");
+  if (detail) {
+    detail.textContent = error instanceof Error ? error.message : String(error || "Unknown lifecycle error");
+  }
+}
 
 function shellHtml() {
   return `
@@ -127,6 +223,7 @@ function shellHtml() {
         <button class="tab-button" type="button" data-scope="areas">Areas</button>
         <button class="tab-button" type="button" data-scope="integrations">Integrations</button>
         <button class="tab-button" type="button" data-scope="relationships">Relationships</button>
+        <button class="tab-button" type="button" data-scope="logic">Logic</button>
         <label class="raw-toggle">
           <input id="raw-id-toggle" type="checkbox" />
           <span>Show raw identifiers</span>
@@ -205,12 +302,49 @@ function shellHtml() {
           <div class="metric-grid" id="relationships-summary" data-loading-target>Loading</div>
           <div class="relationship-lists" id="relationships-lists"></div>
         </section>
+
+        <section class="view" id="view-logic">
+          <div class="section-heading">
+            <h2>Logic</h2>
+            <span class="count-label" id="logic-count">0 references</span>
+          </div>
+          <div class="metric-grid" id="logic-summary" data-loading-target>Loading</div>
+          <section class="logic-section">
+            <div class="relationship-heading">
+              <h3>Source Coverage</h3>
+              <span class="badge muted">starter slice</span>
+            </div>
+            <div class="coverage-grid" id="logic-source-coverage">Loading</div>
+          </section>
+          <div class="logic-grid">
+            <section class="logic-section">
+              <h3>Automations</h3>
+              <div class="list" id="logic-automations">Loading</div>
+            </section>
+            <section class="logic-section">
+              <h3>Scripts</h3>
+              <div class="list" id="logic-scripts">Loading</div>
+            </section>
+          </div>
+          <section class="logic-section">
+            <h3>Entity Usage</h3>
+            <div class="list" id="logic-entity-references">Loading</div>
+          </section>
+          <section class="logic-section">
+            <h3>Additional Caveats</h3>
+            <div class="stack" id="logic-warnings">Loading</div>
+          </section>
+        </section>
       </main>
     </div>
   `;
 }
 
 function bindTabs() {
+  if (!appState.root) {
+    return;
+  }
+
   appState.root.querySelectorAll("[data-scope]").forEach((button) => {
     button.addEventListener("click", () => activateScope(button.dataset.scope));
   });
@@ -219,6 +353,9 @@ function bindTabs() {
 function bindEntityFilters() {
   const search = byId("entities-search");
   const domain = byId("entities-domain");
+  if (!search || !domain) {
+    return;
+  }
 
   search.addEventListener("input", () => {
     appState.entitySearch = search.value.trim().toLowerCase();
@@ -232,7 +369,12 @@ function bindEntityFilters() {
 }
 
 function bindRawToggle() {
-  byId("raw-id-toggle").addEventListener("change", (event) => {
+  const toggle = byId("raw-id-toggle");
+  if (!toggle) {
+    return;
+  }
+
+  toggle.addEventListener("change", (event) => {
     appState.showRawIds = event.target.checked;
     renderScope(appState.activeScope);
   });
@@ -240,6 +382,9 @@ function bindRawToggle() {
 
 function activateScope(scope) {
   if (!SCOPES.includes(scope)) {
+    return;
+  }
+  if (!appState.root) {
     return;
   }
 
@@ -257,18 +402,32 @@ function activateScope(scope) {
 async function loadScope(scope) {
   if (appState.authBlocked) {
     appState.data[scope] = authBlockedPayload(scope);
-    renderScope(scope);
+    if (appState.root) {
+      renderScope(scope);
+    }
     return;
   }
 
-  if (appState.data[scope] || appState.loading[scope]) {
-    renderScope(scope);
+  if (appState.loading[scope]) {
+    if (appState.root) {
+      setStatus("Loading", "Reading Home Assistant data");
+      setViewLoading(scope);
+    }
+    return;
+  }
+
+  if (appState.data[scope]) {
+    if (appState.root) {
+      renderScope(scope);
+    }
     return;
   }
 
   if (!appState.hass || typeof appState.hass.callApi !== "function") {
     blockProtectedData("The Home Assistant panel context did not provide an authenticated API client.");
-    renderScope(scope);
+    if (appState.root) {
+      renderScope(scope);
+    }
     return;
   }
 
@@ -278,23 +437,33 @@ async function loadScope(scope) {
 
   try {
     appState.data[scope] = await appState.hass.callApi("GET", `${API_PATH_BASE}/${scope}`);
-    setStatus("Connected", "Admin data endpoint available");
-    clearGlobalNotice();
+    if (appState.root) {
+      setStatus("Connected", "Admin data endpoint available");
+      clearGlobalNotice();
+    }
   } catch (error) {
     const message = errorMessage(error);
     if (isAuthError(error)) {
       blockProtectedData(message);
     } else {
       appState.data[scope] = { error: message, items: [], warnings: [] };
-      setStatus("Unavailable", shortError(error));
+      if (appState.root) {
+        setStatus("Unavailable", shortError(error));
+      }
     }
   } finally {
     appState.loading[scope] = false;
-    renderScope(scope);
+    if (appState.root) {
+      renderScope(scope);
+    }
   }
 }
 
 function renderScope(scope) {
+  if (!appState.root) {
+    return;
+  }
+
   if (scope === "overview") {
     renderOverview();
   } else if (scope === "entities") {
@@ -307,6 +476,8 @@ function renderScope(scope) {
     renderIntegrations();
   } else if (scope === "relationships") {
     renderRelationships();
+  } else if (scope === "logic") {
+    renderLogic();
   }
 }
 
@@ -327,6 +498,7 @@ function renderOverview() {
     ["Areas", counts.areas],
     ["Integrations", counts.integrations],
     ["Relationships", relationshipTotal],
+    ["Logic refs", counts.logic?.total_references],
   ];
 
   const countTarget = clearById("overview-counts");
@@ -495,6 +667,178 @@ function renderRelationships() {
   });
 }
 
+function renderLogic() {
+  const data = appState.data.logic || {};
+  if (data.error) {
+    setCountText("logic-count", 0);
+    setEmpty("logic-summary", "Logic unavailable", data.error);
+    setEmpty("logic-source-coverage", "Source coverage unavailable", data.error);
+    setEmpty("logic-automations", "Automations unavailable", data.error);
+    setEmpty("logic-scripts", "Scripts unavailable", data.error);
+    setEmpty("logic-entity-references", "Entity usage unavailable", data.error);
+    setEmpty("logic-warnings", "Caveats unavailable", data.error);
+    return;
+  }
+
+  const counts = data.counts || {};
+  const logicCount = byId("logic-count");
+  if (logicCount) {
+    logicCount.textContent = `${formatValue(counts.total_references)} refs across ${formatValue(counts.referenced_entities)} entities`;
+  }
+
+  const summaryTarget = clearById("logic-summary");
+  [
+    ["Automations", counts.automations],
+    ["Scripts", counts.scripts],
+    ["Referenced entities", counts.referenced_entities],
+    ["Total refs", counts.total_references],
+  ].forEach(([label, value]) => {
+    const card = el("article", "metric-card compact");
+    card.append(el("span", "metric-label", label));
+    card.append(el("strong", "metric-value", formatValue(value)));
+    summaryTarget.append(card);
+  });
+
+  const referencesById = Object.fromEntries((data.entity_references || []).map((item) => [item.entity_id, item]));
+  const scriptLabels = Object.fromEntries((data.scripts || []).map((item) => [item.id, item.display_name || item.entity_id || item.id]));
+
+  renderSourceCoverage(data.source_coverage || []);
+  renderLogicConfigList("logic-automations", data.automations || [], referencesById, scriptLabels, "automation");
+  renderLogicConfigList("logic-scripts", data.scripts || [], referencesById, scriptLabels, "script");
+  renderEntityReferences(data.entity_references || []);
+  renderWarnings("logic-warnings", data.warnings || []);
+}
+
+function renderSourceCoverage(items) {
+  const target = clearById("logic-source-coverage");
+  if (!items.length) {
+    setEmpty("logic-source-coverage", "No source coverage", "The logic endpoint did not report source coverage.");
+    return;
+  }
+
+  items.forEach((item) => {
+    const card = el("article", `coverage-card status-${item.status || "unknown"}`);
+    const header = el("div", "coverage-header");
+    header.append(el("strong", "", item.label || item.source || "Source"));
+    header.append(el("span", "badge muted", SOURCE_STATUS_LABELS[item.status] || item.status || "unknown"));
+    card.append(header);
+    card.append(el("div", "row-subtitle", item.source_file || item.source || "generic source"));
+    card.append(el("div", "coverage-count", `${formatValue(item.parsed_item_count)} parsed item(s)`));
+    if (item.detail) {
+      card.append(el("p", "coverage-detail", item.detail));
+    }
+    target.append(card);
+  });
+}
+
+function renderLogicConfigList(targetId, items, referencesById, scriptLabels, kind) {
+  const target = clearById(targetId);
+  if (!items.length) {
+    setEmpty(targetId, kind === "automation" ? "No automations" : "No scripts", "No parsed items were returned for this source.");
+    return;
+  }
+
+  items.forEach((item) => {
+    const row = el("article", "list-row logic-row");
+    const main = el("div", "row-main");
+    main.append(el("div", "row-title", item.display_name || item.alias || item.entity_id || item.id || "Unnamed"));
+    main.append(el("div", "row-subtitle", item.source_file || ""));
+
+    const details = el("div", "row-details");
+    if (item.source_file) details.append(badge(item.source_file));
+    if (item.mode) details.append(badge(`Mode: ${item.mode}`));
+    if (kind === "automation" && item.enabled !== null && item.enabled !== undefined) {
+      details.append(badge(item.enabled ? "Enabled" : "Disabled"));
+    }
+    const summary = item.summary || {};
+    Object.entries(summary).forEach(([label, value]) => details.append(badge(`${humanizeIdentifier(label)}: ${formatValue(value)}`)));
+
+    row.append(main, details);
+    if (appState.showRawIds) {
+      row.append(rawIdentifierBlock(rawBadges([["ID", item.id], ["Entity", item.entity_id], ["Source", item.source_kind]])));
+    }
+    row.append(
+      logicReferenceChips(
+        "Entities",
+        item.referenced_entities || [],
+        (entityId) => referenceLabel(entityId, referencesById),
+        "No entity references",
+        (entityId) => entityId
+      )
+    );
+    row.append(
+      logicReferenceChips(
+        "Scripts",
+        item.referenced_script_ids || [],
+        (scriptId) => scriptLabel(scriptId, scriptLabels),
+        "No script references",
+        (scriptId) => `script.${scriptId}`
+      )
+    );
+    target.append(row);
+  });
+}
+
+function renderEntityReferences(items) {
+  const target = clearById("logic-entity-references");
+  if (!items.length) {
+    setEmpty("logic-entity-references", "No entity references", "No entity references were extracted from the parsed starter sources.");
+    return;
+  }
+
+  items.slice(0, 120).forEach((item) => {
+    const row = el("article", "list-row");
+    const main = el("div", "row-main");
+    main.append(el("div", "row-title", item.display_name || entityFallback(item.entity_id)));
+    main.append(el("div", "row-subtitle", `${formatValue(item.reference_count)} total reference(s)`));
+    const details = el("div", "row-details");
+    details.append(badge(`${formatValue(item.reference_count)} refs`));
+    details.append(badge(`${formatValue((item.referenced_by_automations || []).length)} automations`));
+    details.append(badge(`${formatValue((item.referenced_by_scripts || []).length)} scripts`));
+    row.append(main, details);
+    if (appState.showRawIds) {
+      row.append(rawIdentifierBlock(rawBadges([["Entity", item.entity_id]])));
+    }
+    target.append(row);
+  });
+}
+
+function logicReferenceChips(label, values, formatter, emptyText, rawFormatter) {
+  const block = el("div", "logic-reference-block");
+  block.append(el("span", "logic-reference-label", label));
+  const details = el("div", "row-details");
+  if (!values.length) {
+    details.append(el("span", "muted-text", emptyText));
+  } else {
+    values.slice(0, 12).forEach((value) => details.append(badge(formatter(value))));
+    if (values.length > 12) {
+      details.append(badge(`+${values.length - 12} more`));
+    }
+  }
+  block.append(details);
+  if (appState.showRawIds && values.length && rawFormatter) {
+    block.append(rawIdentifierBlock(values.slice(0, 12).map((value) => rawFormatter(value))));
+  }
+  return block;
+}
+
+function referenceLabel(entityId, referencesById) {
+  return referencesById[entityId]?.display_name || entityFallback(entityId);
+}
+
+function scriptLabel(scriptId, scriptLabels) {
+  return scriptLabels[scriptId] || humanizeIdentifier(scriptId);
+}
+
+function rawIdentifierBlock(values) {
+  const raw = el("div", "raw-identifiers");
+  values.filter(Boolean).forEach((value) => raw.append(el("span", "", value)));
+  if (!raw.childNodes.length) {
+    raw.append(el("span", "", "No raw identifiers"));
+  }
+  return raw;
+}
+
 function relationshipRow(row, set) {
   const line = el("div", "relationship-row");
   const summary = el("div", "relationship-summary-line");
@@ -566,6 +910,10 @@ function renderList(targetId, data, mapper) {
 
 function refreshDomainFilter(items) {
   const select = byId("entities-domain");
+  if (!select) {
+    return;
+  }
+
   const current = select.value;
   const domains = [...new Set(items.map((item) => item.domain).filter(Boolean))].sort();
 
@@ -591,6 +939,10 @@ function renderWarnings(targetId, warnings) {
 
 function setViewLoading(scope) {
   const view = byId(`view-${scope}`);
+  if (!view) {
+    return;
+  }
+
   const list = view.querySelector("[data-loading-target]");
   if (list) {
     list.textContent = "Loading";
@@ -598,8 +950,14 @@ function setViewLoading(scope) {
 }
 
 function setStatus(label, detail) {
-  byId("data-state-label").textContent = label;
-  byId("data-state-detail").textContent = detail;
+  const labelTarget = byId("data-state-label");
+  const detailTarget = byId("data-state-detail");
+  if (!labelTarget || !detailTarget) {
+    return;
+  }
+
+  labelTarget.textContent = label;
+  detailTarget.textContent = detail;
 }
 
 function blockProtectedData(message) {
@@ -607,8 +965,10 @@ function blockProtectedData(message) {
   SCOPES.forEach((scope) => {
     appState.data[scope] = authBlockedPayload(scope);
   });
-  setStatus("Auth required", "Protected data did not load");
-  renderGlobalAuthFailure(message);
+  if (appState.root) {
+    setStatus("Auth required", "Protected data did not load");
+    renderGlobalAuthFailure(message);
+  }
 }
 
 function authBlockedPayload(scope) {
@@ -622,6 +982,10 @@ function authBlockedPayload(scope) {
 
 function renderGlobalAuthFailure(message) {
   const notice = byId("auth-notice");
+  if (!notice) {
+    return;
+  }
+
   notice.hidden = false;
   notice.textContent = "";
   notice.append(el("strong", "", "Protected data unavailable"));
@@ -636,6 +1000,10 @@ function renderGlobalAuthFailure(message) {
 
 function clearGlobalNotice() {
   const notice = byId("auth-notice");
+  if (!notice) {
+    return;
+  }
+
   notice.hidden = true;
   notice.textContent = "";
 }
@@ -656,12 +1024,16 @@ function setEmpty(targetId, title, body) {
 
 function clearById(id) {
   const target = byId(id);
+  if (!target) {
+    return document.createElement("div");
+  }
+
   target.textContent = "";
   return target;
 }
 
 function byId(id) {
-  return appState.root.getElementById(id);
+  return appState.root ? appState.root.getElementById(id) : null;
 }
 
 function el(tag, className, text) {

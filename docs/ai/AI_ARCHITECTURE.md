@@ -6,7 +6,7 @@ The integration registers:
 
 - a Home Assistant native custom sidebar panel
 - static frontend assets under `/local/ha_context_explorer_probe`
-- six authenticated admin-only JSON endpoints under `/api/ha_context_explorer_probe`
+- seven authenticated admin-only JSON endpoints under `/api/ha_context_explorer_probe`
 
 The panel frontend is a JavaScript module custom element registered through `panel_custom`. Home Assistant passes the frontend `hass` object to the element. Real data access is enforced at the JSON endpoints.
 
@@ -20,8 +20,12 @@ The backend reads only Home Assistant in-memory data:
 - area registry
 - config entries
 - loaded component names
+- canonical `automations.yaml`
+- canonical `scripts.yaml`
 
-It shapes those sources into compact JSON contracts for overview, entities, devices, areas, integrations, and relationships. It does not expose raw registry objects.
+It shapes those sources into compact JSON contracts for overview, entities, devices, areas, integrations, relationships, and logic. It does not expose raw registry objects.
+
+The logic scope is intentionally narrow. It reads only canonical automation and script YAML files, returns structured `source_coverage`, and does not read `.storage`, secrets, packages, include trees, dashboards, or broad config directories.
 
 ## Privacy layer
 
@@ -36,6 +40,8 @@ Masking is best-effort and not guaranteed anonymization.
 ## Frontend data flow
 
 The frontend calls each scope endpoint through `hass.callApi("GET", "ha_context_explorer_probe/<scope>")`. It does not hard-code browser storage token keys. If Home Assistant auth is unavailable to the custom panel runtime, the frontend records one global 401/403 protected-data failure and stops further endpoint requests for that page session.
+
+The Logic tab renders source coverage before logic rows so users can distinguish parsed, missing, unsupported, failed, and partially parsed sources without reading docs first.
 
 ## Capability model
 

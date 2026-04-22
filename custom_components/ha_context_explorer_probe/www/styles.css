@@ -36,6 +36,16 @@ select {
   padding: 18px;
 }
 
+.lifecycle-fallback {
+  display: grid;
+  place-items: start center;
+}
+
+.lifecycle-fallback .empty-state {
+  max-width: 720px;
+  width: 100%;
+}
+
 .topbar {
   align-items: center;
   display: flex;
@@ -225,9 +235,14 @@ h3 {
 
 .stack,
 .list,
-.relationship-lists {
+.relationship-lists,
+.coverage-grid {
   display: grid;
   gap: 9px;
+}
+
+.coverage-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .toolbar {
@@ -333,6 +348,73 @@ h3 {
   color: var(--warn);
 }
 
+.logic-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.logic-section {
+  margin-bottom: 20px;
+}
+
+.logic-row {
+  display: grid;
+  gap: 10px;
+}
+
+.logic-reference-block {
+  display: grid;
+  gap: 5px;
+}
+
+.logic-reference-label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.coverage-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 5px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+}
+
+.coverage-card.status-parsed_available {
+  border-left-color: var(--accent);
+}
+
+.coverage-card.status-missing {
+  border-left-color: var(--muted);
+}
+
+.coverage-card.status-unsupported_starter_slice {
+  border-left-color: var(--violet);
+}
+
+.coverage-card.status-parse_failed,
+.coverage-card.status-partially_parsed {
+  border-left-color: var(--warn);
+}
+
+.coverage-header {
+  align-items: start;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.coverage-count,
+.coverage-detail {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .relationship-set {
   margin-top: 18px;
 }
@@ -410,6 +492,7 @@ h3 {
   }
 
   .two-column,
+  .logic-grid,
   .entity-row {
     grid-template-columns: 1fr;
   }

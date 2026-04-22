@@ -1,5 +1,274 @@
 # Review Bundle
 
+## 0.3.1 lifecycle bugfix review
+
+Task: `fix-panel-lifecycle-blank-screen`
+
+Result: focused native custom-panel lifecycle hardening implemented.
+
+- Made `connectedCallback()` reentrant so the panel reuses or rebuilds the current shadow-root shell after Home Assistant internal navigation, remount, or reconnect.
+- Added `disconnectedCallback()` cleanup for stale global host/root references while preserving cached data, active tab, filters, and the session-only raw-ID toggle state.
+- Guarded `customElements.define(...)` with `customElements.get(...)` to avoid duplicate-definition failures if the module is evaluated again.
+- Added shell readiness checks and a visible lifecycle fallback message instead of a silent blank panel if restoration fails.
+- Added frontend guards so async `hass.callApi` responses that finish while the panel is detached do not write into a stale or missing root.
+- Kept all existing scopes, endpoint URLs, authenticated/admin-only checks, GET-only behavior, source readers, source coverage semantics, and read-only constraints unchanged.
+- Bumped the integration version to `0.3.1`.
+
+### 0.3.1 validation results
+
+Backend syntax:
+
+```powershell
+python -c "import ast, pathlib; files=[pathlib.Path('custom_components/ha_context_explorer_probe/__init__.py'), pathlib.Path('custom_components/ha_context_explorer_probe/api.py'), pathlib.Path('custom_components/ha_context_explorer_probe/logic.py'), pathlib.Path('custom_components/ha_context_explorer_probe/privacy.py'), pathlib.Path('custom_components/ha_context_explorer_probe/config_flow.py'), pathlib.Path('custom_components/ha_context_explorer_probe/const.py')]; [ast.parse(path.read_text(encoding='utf-8'), filename=str(path)) for path in files]; print('AST syntax OK for', len(files), 'backend files')"
+```
+
+Result:
+
+```text
+AST syntax OK for 6 backend files
+```
+
+Manifest JSON:
+
+```powershell
+python -c "import json, pathlib; json.loads(pathlib.Path('custom_components/ha_context_explorer_probe/manifest.json').read_text(encoding='utf-8')); print('manifest JSON OK')"
+```
+
+Result:
+
+```text
+manifest JSON OK
+```
+
+Frontend syntax check:
+
+```powershell
+node --check custom_components\ha_context_explorer_probe\www\app.js
+```
+
+Result:
+
+```text
+Not completed in this sandbox: node.exe returned Access denied, including when retried with elevated permissions.
+```
+
+Safety scan:
+
+```powershell
+Get-ChildItem -Path custom_components\ha_context_explorer_probe -Recurse -File | Select-String -Pattern "def post|def put|def patch|def delete|hass\.services\.async_call|async_register_service|register_admin_service|\.async_set\(|\.storage|secrets\.yaml|localStorage|sessionStorage|Authorization|Bearer"
+```
+
+Result:
+
+```text
+No matches.
+```
+
+Auth/admin scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\api.py | Select-String -Pattern "requires_auth = True|_require_admin|is_admin|Unauthorized|ProbeDataView|logic"
+```
+
+Result:
+
+```text
+JSON views still set requires_auth = True and call _require_admin(); the logic route remains registered through the same ProbeDataView path.
+```
+
+Frontend lifecycle scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\www\app.js | Select-String -Pattern "customElements\.get|customElements\.define|connectedCallback|disconnectedCallback|isShellReady|initializeShell|syncShellState|renderLifecycleFailure|hass\.callApi|SCOPES|Show raw identifiers|logic"
+```
+
+Result:
+
+```text
+The panel module contains guarded custom-element registration, reconnect/remount shell readiness checks, disconnect cleanup, visible lifecycle fallback, hass.callApi loading, all seven scopes, the Logic tab, and the session-only raw-ID toggle.
+```
+
+Logic source-reader scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\logic.py | Select-String -Pattern "automations.yaml|scripts.yaml|async_add_executor_job|read_text|\.storage|secrets\.yaml"
+```
+
+Result:
+
+```text
+Logic source coverage remains the existing starter slice: canonical automations.yaml and scripts.yaml are read through async_add_executor_job. No .storage or secrets.yaml access was added.
+```
+
+Reference-data safety:
+
+```powershell
+Get-ChildItem -Path custom_components,docs -Recurse -File | Select-String -Pattern "_local_reference|probe_input"
+```
+
+Result:
+
+```text
+No implementation file references _local_reference or probe_input. A policy-only _local_reference mention remains in AI project context.
+```
+
+Version alignment:
+
+```powershell
+Get-ChildItem -Path custom_components,docs -Recurse -File | Select-String -Pattern "0\.3\.1"
+Get-ChildItem -Path . -File | Select-String -Pattern "0\.3\.1"
+```
+
+Result:
+
+```text
+0.3.1 appears in integration constants, manifest, frontend cache version, README, changelog, review bundle, and AI docs. 0.3.0 and 0.2.x references remain as historical milestone notes.
+```
+
+Runtime caveat:
+
+- This sandbox cannot reproduce the user's live Home Assistant navigation/remount behavior.
+- The code path was hardened against stale detached roots and duplicate custom-element registration, but live confirmation of the blank-screen fix still depends on the user's Home Assistant runtime.
+- Manual local replacement of backend/Python integration files still typically requires a Home Assistant restart. Distribution/update-channel work, such as HACS update visibility, is separate and not part of this task.
+
+## 0.3.0 follow-up review
+
+Task: `add-logic-reference-slice`
+
+Result: first read-only logic/reference starter slice implemented.
+
+- Added authenticated/admin-only `GET /api/ha_context_explorer_probe/logic`.
+- Added the `logic` implemented scope and removed it from future/unavailable scopes.
+- Added read-only parsing for canonical `automations.yaml` and `scripts.yaml` only.
+- Added compact automation, script, and entity usage summaries.
+- Added structured `source_coverage` as the primary source-state surface.
+- Added distinct source states for parsed/available, missing, unsupported starter source, parse failed, and partially parsed.
+- Kept source identifiers compact with basenames such as `automations.yaml` and `scripts.yaml`.
+- Added a Logic tab with summary cards, source coverage, automation rows, script rows, entity usage rows, and non-duplicative caveats.
+- Existing endpoint auth/admin checks, GET-only behavior, and no-spam frontend auth handling remain intact.
+- This is a starter logic/reference slice, not a full Home Assistant logic graph, template parser, or execution tracer.
+
+### 0.3.0 finalize/polish pass
+
+Task: `finalize-logic-0-3-0`
+
+Result: documentation consistency and small Logic tab clarity polish.
+
+- Normalized lower review summary wording so the current branch state is `0.3.0`.
+- Kept 0.2.0, 0.2.1, 0.2.2, and 0.2.3 notes as historical records.
+- Adjusted README/current-state wording so the implemented scope list includes the Logic starter slice.
+- Kept `source_coverage` as the primary structured source-state surface.
+- Kept Additional Caveats focused on interpretation limits instead of repeating source coverage states.
+- Moved dense Logic raw-ID details into secondary raw identifier lines while preserving label-first rows.
+- No backend payload shape, endpoint security, source readers, or scope coverage was expanded in this polish pass.
+
+### 0.3.0 validation results
+
+Backend syntax:
+
+```powershell
+python -c "import ast, pathlib; files=[pathlib.Path('custom_components/ha_context_explorer_probe/__init__.py'), pathlib.Path('custom_components/ha_context_explorer_probe/api.py'), pathlib.Path('custom_components/ha_context_explorer_probe/logic.py'), pathlib.Path('custom_components/ha_context_explorer_probe/privacy.py'), pathlib.Path('custom_components/ha_context_explorer_probe/config_flow.py'), pathlib.Path('custom_components/ha_context_explorer_probe/const.py')]; [ast.parse(path.read_text(encoding='utf-8'), filename=str(path)) for path in files]; print('AST syntax OK for', len(files), 'backend files')"
+```
+
+Result:
+
+```text
+AST syntax OK for 6 backend files
+```
+
+Manifest JSON:
+
+```powershell
+python -c "import json, pathlib; json.loads(pathlib.Path('custom_components/ha_context_explorer_probe/manifest.json').read_text(encoding='utf-8')); print('manifest JSON OK')"
+```
+
+Result:
+
+```text
+manifest JSON OK
+```
+
+Parser availability:
+
+```powershell
+python -c "import importlib.util; print('yaml available:', importlib.util.find_spec('yaml') is not None); print('homeassistant available:', importlib.util.find_spec('homeassistant') is not None)"
+```
+
+Result:
+
+```text
+yaml available: True
+homeassistant available: False
+```
+
+Safety scan:
+
+```powershell
+Get-ChildItem -Recurse -File -Path custom_components\ha_context_explorer_probe | Select-String -Pattern "def post|def put|def patch|def delete|hass\.services\.async_call|async_register_service|register_admin_service|\.async_set\(|\.storage|secrets\.yaml|localStorage|sessionStorage|Authorization|Bearer"
+```
+
+Result:
+
+```text
+No matches.
+```
+
+Auth/admin scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\api.py | Select-String -Pattern "requires_auth = True|_require_admin|is_admin|Unauthorized|logic"
+```
+
+Result:
+
+```text
+JSON views still set requires_auth = True, call _require_admin(), and include the logic route.
+```
+
+Logic source scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\logic.py | Select-String -Pattern "automations.yaml|scripts.yaml|source_coverage|unsupported_starter_slice|path.read_text|async_add_executor_job"
+```
+
+Result:
+
+```text
+Logic reads only canonical automations.yaml and scripts.yaml through async_add_executor_job. Source coverage uses structured starter-slice statuses.
+```
+
+Frontend scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\www\app.js | Select-String -Pattern "logic|Source Coverage|source_coverage|SOURCE_STATUS_LABELS|hass.callApi"
+```
+
+Result:
+
+```text
+Logic tab, source coverage rendering, status labels, and hass.callApi loading path were found.
+```
+
+Reference-data safety scan:
+
+```powershell
+Get-ChildItem -Recurse -File -Path custom_components\ha_context_explorer_probe | Select-String -Pattern "_local_reference|probe_input"
+Get-ChildItem -Recurse -File -Path README.md,CHANGELOG.md,docs | Select-String -Pattern "probe_input"
+```
+
+Result:
+
+```text
+No implementation file references `_local_reference/` or `probe_input`.
+No README, changelog, or AI documentation file references `probe_input`.
+```
+
+Validation caveats:
+
+- Local Home Assistant runtime testing was not possible in this sandbox because `homeassistant available: False`.
+- JavaScript syntax was reviewed by source inspection; `node --check` could not run because `node.exe` is blocked by the local execution environment, even with escalation.
+- Live validation should confirm that the Logic tab loads source coverage and parsed references in the user's Home Assistant runtime.
+
 ## 0.2.3 follow-up review
 
 Task: `refine-privacy-display`
@@ -94,7 +363,7 @@ Get-Content -Path custom_components\ha_context_explorer_probe\const.py,custom_co
 Result:
 
 ```text
-Current-version source files and docs reference 0.2.3. Historical 0.2.0, 0.2.1, and 0.2.2 notes remain intact.
+At the time of the 0.2.3 display-refinement review, version-alignment source files and docs referenced 0.2.3. Historical 0.2.0, 0.2.1, and 0.2.2 notes remained intact.
 ```
 
 Reference-data safety scan:
@@ -337,9 +606,9 @@ Result:
 No matches.
 ```
 
-## Scope
+## Current Scope Summary
 
-Phase 2 implemented HA Context Explorer Probe `0.2.0` as the first real read-only explorer slice. The current corrective/display-refinement version is `0.2.3`.
+Phase 2 implemented HA Context Explorer Probe `0.2.0` as the first real read-only explorer slice. Version `0.3.1` is the current branch state and keeps the `0.3.0` logic/reference starter slice while adding focused native-panel lifecycle hardening on top of the 0.2.x foundation.
 
 Implemented real data scopes:
 
@@ -349,13 +618,18 @@ Implemented real data scopes:
 - areas
 - integrations
 - relationships
+- logic
 
-Not implemented in this phase:
+Still not implemented:
 
 - floors
 - labels
 - dashboards
+- packages and include-based logic layouts
+- storage-only editor internals
+- full template dependency coverage
 - deep YAML or logic graphing
+- graph visualization or execution tracing
 - write settings or saved preferences
 - mutation features
 
@@ -366,7 +640,8 @@ Result: pass with live-runtime caveat.
 - Real data routes are registered as `GET` handlers only.
 - JSON data endpoints set `requires_auth = True`.
 - JSON data endpoints explicitly require `request["hass_user"].is_admin`.
-- The native custom panel loads real data through Home Assistant's frontend auth context in the user's tested runtime.
+- The native custom panel loads the originally implemented protected scopes through Home Assistant's frontend auth context in the user's tested runtime.
+- The 0.3.0 logic slice is implemented as a protected read-only endpoint and still needs live Home Assistant runtime confirmation.
 - No service calls were added.
 - No service registration was added.
 - No POST / PUT / PATCH / DELETE handlers were added.
@@ -480,7 +755,7 @@ At the time of the original Phase-2 review, `0.2.0` was confirmed in:
 - `CHANGELOG.md`
 - `docs/ai/AI_CURRENT_STATE.md`
 
-Current version alignment is covered by the newer 0.2.3 review section above. Historical `0.1.1`, `0.1.0`, and prior corrective-version references remain only in changelog/change-history/review context.
+Current version alignment is covered by the newer 0.3.1 review section above. Historical `0.1.1`, `0.1.0`, and prior corrective-version references remain only in changelog/change-history/review context.
 
 ### Historical Home Assistant runtime caveat
 
@@ -496,4 +771,4 @@ Result:
 homeassistant available: False
 ```
 
-This was the 0.2.0 local-sandbox caveat before live runtime testing and before the native custom panel bridge. Current 0.2.2 behavior is confirmed working in the user's tested Home Assistant runtime for the implemented scopes, while universal compatibility across all HA environments remains unproven.
+This was the 0.2.0 local-sandbox caveat before live runtime testing and before the native custom panel bridge. The native panel bridge behavior was confirmed working in the user's tested Home Assistant runtime for the 0.2.2 implemented scopes, while universal compatibility across all HA environments, live 0.3.0 logic-slice behavior, and live 0.3.1 lifecycle behavior remain unproven in this sandbox.
