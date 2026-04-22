@@ -32,7 +32,7 @@
 
 ## Confirmed Runtime State
 
-In the user's tested Home Assistant runtime on the current working branch:
+Previously confirmed in the user's Home Assistant runtime after the native custom panel auth bridge:
 
 - The native custom panel loads successfully.
 - The panel reports `Connected / Admin data endpoint available`.
@@ -40,7 +40,7 @@ In the user's tested Home Assistant runtime on the current working branch:
 - Entities, devices, areas, integrations, and relationships load real items/link sets.
 - The previous iframe-style invalid-auth failure is no longer the active observed behavior.
 
-The `0.3.0` logic slice has not been live-tested in this sandbox. It is implemented as a read-only starter slice that parses only canonical `automations.yaml` and `scripts.yaml` when those files are available in the Home Assistant config directory.
+The `0.3.0` logic slice is the current branch behavior. It has not been live-tested in this sandbox. It is implemented as a read-only starter slice that parses only canonical `automations.yaml` and `scripts.yaml` when those files are available in the Home Assistant config directory.
 
 ## Not implemented
 

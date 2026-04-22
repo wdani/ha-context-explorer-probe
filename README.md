@@ -16,9 +16,9 @@ This is **not** a continuation of `ha-ai-context-exporter`. It is a clean probe 
 
 `0.3.0`
 
-## Implemented scope
+## Implemented scopes
 
-Phase 2 introduces the first real read-only explorer slice:
+The current `0.3.0` branch includes the first real read-only explorer slice plus the first logic/reference starter slice:
 
 - Overview
 - Entities

@@ -612,7 +612,7 @@ function renderLogicConfigList(targetId, items, referencesById, scriptLabels, ki
     const row = el("article", "list-row logic-row");
     const main = el("div", "row-main");
     main.append(el("div", "row-title", item.display_name || item.alias || item.entity_id || item.id || "Unnamed"));
-    main.append(el("div", "row-subtitle", appState.showRawIds ? [item.id, item.entity_id].filter(Boolean).join(" / ") : item.source_file || ""));
+    main.append(el("div", "row-subtitle", item.source_file || ""));
 
     const details = el("div", "row-details");
     if (item.source_file) details.append(badge(item.source_file));
@@ -622,14 +622,29 @@ function renderLogicConfigList(targetId, items, referencesById, scriptLabels, ki
     }
     const summary = item.summary || {};
     Object.entries(summary).forEach(([label, value]) => details.append(badge(`${humanizeIdentifier(label)}: ${formatValue(value)}`)));
-    if (appState.showRawIds) {
-      if (item.id) details.append(badge(`ID: ${item.id}`));
-      if (item.entity_id) details.append(badge(`Entity: ${item.entity_id}`));
-    }
 
     row.append(main, details);
-    row.append(logicReferenceChips("Entities", item.referenced_entities || [], (entityId) => referenceLabel(entityId, referencesById), "No entity references"));
-    row.append(logicReferenceChips("Scripts", item.referenced_script_ids || [], (scriptId) => scriptLabel(scriptId, scriptLabels), "No script references"));
+    if (appState.showRawIds) {
+      row.append(rawIdentifierBlock(rawBadges([["ID", item.id], ["Entity", item.entity_id], ["Source", item.source_kind]])));
+    }
+    row.append(
+      logicReferenceChips(
+        "Entities",
+        item.referenced_entities || [],
+        (entityId) => referenceLabel(entityId, referencesById),
+        "No entity references",
+        (entityId) => entityId
+      )
+    );
+    row.append(
+      logicReferenceChips(
+        "Scripts",
+        item.referenced_script_ids || [],
+        (scriptId) => scriptLabel(scriptId, scriptLabels),
+        "No script references",
+        (scriptId) => `script.${scriptId}`
+      )
+    );
     target.append(row);
   });
 }
@@ -645,20 +660,20 @@ function renderEntityReferences(items) {
     const row = el("article", "list-row");
     const main = el("div", "row-main");
     main.append(el("div", "row-title", item.display_name || entityFallback(item.entity_id)));
-    main.append(el("div", "row-subtitle", appState.showRawIds ? item.entity_id : `${formatValue(item.reference_count)} total reference(s)`));
+    main.append(el("div", "row-subtitle", `${formatValue(item.reference_count)} total reference(s)`));
     const details = el("div", "row-details");
     details.append(badge(`${formatValue(item.reference_count)} refs`));
     details.append(badge(`${formatValue((item.referenced_by_automations || []).length)} automations`));
     details.append(badge(`${formatValue((item.referenced_by_scripts || []).length)} scripts`));
-    if (appState.showRawIds) {
-      details.append(badge(`ID: ${item.entity_id}`));
-    }
     row.append(main, details);
+    if (appState.showRawIds) {
+      row.append(rawIdentifierBlock(rawBadges([["Entity", item.entity_id]])));
+    }
     target.append(row);
   });
 }
 
-function logicReferenceChips(label, values, formatter, emptyText) {
+function logicReferenceChips(label, values, formatter, emptyText, rawFormatter) {
   const block = el("div", "logic-reference-block");
   block.append(el("span", "logic-reference-label", label));
   const details = el("div", "row-details");
@@ -671,17 +686,27 @@ function logicReferenceChips(label, values, formatter, emptyText) {
     }
   }
   block.append(details);
+  if (appState.showRawIds && values.length && rawFormatter) {
+    block.append(rawIdentifierBlock(values.slice(0, 12).map((value) => rawFormatter(value))));
+  }
   return block;
 }
 
 function referenceLabel(entityId, referencesById) {
-  const label = referencesById[entityId]?.display_name || entityFallback(entityId);
-  return appState.showRawIds ? `${label} (${entityId})` : label;
+  return referencesById[entityId]?.display_name || entityFallback(entityId);
 }
 
 function scriptLabel(scriptId, scriptLabels) {
-  const label = scriptLabels[scriptId] || humanizeIdentifier(scriptId);
-  return appState.showRawIds ? `${label} (script.${scriptId})` : label;
+  return scriptLabels[scriptId] || humanizeIdentifier(scriptId);
+}
+
+function rawIdentifierBlock(values) {
+  const raw = el("div", "raw-identifiers");
+  values.filter(Boolean).forEach((value) => raw.append(el("span", "", value)));
+  if (!raw.childNodes.length) {
+    raw.append(el("span", "", "No raw identifiers"));
+  }
+  return raw;
 }
 
 function relationshipRow(row, set) {

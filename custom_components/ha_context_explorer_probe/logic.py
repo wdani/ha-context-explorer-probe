@@ -131,7 +131,7 @@ async def build_logic_payload(hass: HomeAssistant) -> dict[str, Any]:
         "entity_references": entity_references,
         "warnings": [
             "Entity and script reference extraction is best-effort and may miss dynamic or complex template references.",
-            "Logic data is read-only; automations and scripts are not executed or modified.",
+            "This starter reports static references only; it does not trace runtime execution paths.",
         ],
     }
 
