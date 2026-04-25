@@ -172,6 +172,26 @@ h3 {
   color: #704130;
 }
 
+.lifecycle-notice {
+  background: #edf7f5;
+  border: 1px solid #b8ddd7;
+  border-radius: 8px;
+  color: var(--accent);
+  display: grid;
+  gap: 5px;
+  margin: 0 auto 18px;
+  max-width: 1320px;
+  padding: 13px 14px;
+}
+
+.lifecycle-notice[hidden] {
+  display: none;
+}
+
+.lifecycle-notice p {
+  color: #355f5a;
+}
+
 .view {
   display: none;
 }

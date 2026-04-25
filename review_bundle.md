@@ -1,5 +1,252 @@
 # Review Bundle
 
+## 0.3.3 empty-wrapper lifecycle recovery review
+
+Task: focused follow-up for the live-observed case where Home Assistant leaves `ha-panel-custom` mounted but empty, with no `ha-context-explorer-probe-panel` child in the active DOM.
+
+Result: code hardened for the newly confirmed empty-wrapper failure mode. Live Home Assistant confirmation is still required before calling the blank-screen issue fully solved.
+
+Why the previous lifecycle fix could still fail:
+
+- The `0.3.2` recovery lives mostly inside `ha-context-explorer-probe-panel` or depends on `appState.host` still pointing to an active probe element.
+- The new runtime evidence shows a stronger failure: `ha-panel-custom` remains on the correct route, but the probe element is not present anywhere in the active DOM.
+- If the probe element does not exist, its `connectedCallback()`, `hass` setter, and shell recovery cannot run.
+
+Exact empty-wrapper failure mode addressed:
+
+- `partial-panel-resolver` stays on `ha_context_explorer_probe`.
+- `ha-panel-custom` is present and still has `hass`, `panel`, and registered panel metadata for this integration.
+- `ha-panel-custom` has no child nodes, no children, and empty `innerHTML`.
+- `ha-context-explorer-probe-panel` is registered as a custom element class but missing from the DOM.
+- Manually appending the probe child and assigning `hass`, `panel`, `route`, and `narrow` restores the UI.
+
+What changed:
+
+- Added a global route-specific wrapper recovery hook that can run even when the probe element is missing.
+- Recovery checks for the active probe route, the `ha-panel-custom` wrapper, registered probe panel metadata, a missing probe child, and an otherwise empty wrapper.
+- When those conditions hold, recovery appends one `ha-context-explorer-probe-panel` child and syncs `hass`, `panel`, `route`, and `narrow` from the wrapper.
+- Added a mutation-observer based wrapper check plus visibility/page/focus/navigation triggers, debounced to avoid retry loops.
+- Added a compact wrapper-level visible fallback if remounting itself fails.
+- Kept the existing 0.3.2 panel-internal lifecycle recovery path.
+- Bumped the integration/frontend cache version to `0.3.3`.
+
+Duplicate-mount guard:
+
+- Recovery does nothing if a probe child already exists.
+- Recovery does nothing if the wrapper is not empty.
+- Recovery only considers `ha-panel-custom` wrappers that match the probe panel registration and current route.
+- Recovery scheduling is debounced and does not repeatedly call protected JSON endpoints.
+
+### 0.3.3 validation results
+
+Backend syntax:
+
+```powershell
+python -c "import ast, pathlib; files=[pathlib.Path('custom_components/ha_context_explorer_probe/__init__.py'), pathlib.Path('custom_components/ha_context_explorer_probe/api.py'), pathlib.Path('custom_components/ha_context_explorer_probe/logic.py'), pathlib.Path('custom_components/ha_context_explorer_probe/privacy.py'), pathlib.Path('custom_components/ha_context_explorer_probe/config_flow.py'), pathlib.Path('custom_components/ha_context_explorer_probe/const.py')]; [ast.parse(path.read_text(encoding='utf-8'), filename=str(path)) for path in files]; print('AST syntax OK for', len(files), 'backend files')"
+```
+
+Result:
+
+```text
+AST syntax OK for 6 backend files
+```
+
+Manifest JSON:
+
+```powershell
+python -c "import json, pathlib; json.loads(pathlib.Path('custom_components/ha_context_explorer_probe/manifest.json').read_text(encoding='utf-8')); print('manifest JSON OK')"
+```
+
+Result:
+
+```text
+manifest JSON OK
+```
+
+Frontend syntax check:
+
+```powershell
+& 'C:\Users\daniel\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --check custom_components\ha_context_explorer_probe\www\app.js
+```
+
+Result:
+
+```text
+No syntax errors reported.
+```
+
+Safety scan:
+
+```powershell
+Get-ChildItem -Path custom_components\ha_context_explorer_probe -Recurse -File | Select-String -Pattern "def post|def put|def patch|def delete|hass\.services\.async_call|async_register_service|register_admin_service|\.async_set\(|\.storage|secrets\.yaml|localStorage|sessionStorage|Authorization|Bearer"
+```
+
+Result:
+
+```text
+No matches.
+```
+
+Auth/admin scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\api.py | Select-String -Pattern "requires_auth = True|_require_admin|is_admin|Unauthorized|ProbeDataView|logic"
+```
+
+Result:
+
+```text
+JSON views still set requires_auth = True and call _require_admin(); the logic route remains registered through the same ProbeDataView path.
+```
+
+Frontend wrapper recovery scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\www\app.js | Select-String -Pattern "ensureProbePanelMounted|findProbePanelCustom|isProbePanelWrapper|isPanelWrapperEmpty|syncProbeElementContext|renderWrapperRecoveryFailure|MutationObserver|hass\.callApi"
+```
+
+Result:
+
+```text
+The panel frontend contains route-specific empty-wrapper recovery, duplicate-mount guards, context sync from ha-panel-custom, wrapper-level fallback, and the unchanged hass.callApi GET path.
+```
+
+Runtime caveat:
+
+- This sandbox cannot reproduce the user's live Home Assistant `ha-panel-custom` empty-wrapper state.
+- The code path now directly matches the user's manual recovery experiment, but live runtime confirmation remains required.
+- Manual local replacement of backend/Python integration files still typically requires a Home Assistant restart. This is not HACS/update-channel work.
+
+## 0.3.2 lifecycle recovery follow-up review
+
+Task: focused follow-up for the still-observed Home Assistant blank-screen panel state after the first `0.3.1` lifecycle hardening pass.
+
+Result: deeper frontend lifecycle recovery hardening implemented. Live Home Assistant confirmation is still required before calling the blank-screen issue fully solved.
+
+Likely remaining failure mode after `0.3.1`:
+
+- A new or reactivated Home Assistant panel element could receive `hass` updates while global frontend state still pointed at an older host/root, causing the setter to return before adopting the active panel instance.
+- A shadow root could remain present while required shell targets were missing or stale; the previous `clearById()` fallback returned a detached dummy element, so render work could complete without throwing and without drawing visible UI.
+- Returning from hidden/page-restored/internal-navigation states could leave the element connected but not trigger `connectedCallback()` again, so cached data existed but the shell was not explicitly rebuilt.
+
+What changed:
+
+- The `hass` setter now attempts to recover/adopt the active panel shell instead of returning early on host/root mismatch.
+- Shell readiness now checks the versioned shell root, the active shadow host, and required UI targets.
+- Missing render targets now trigger shell recovery and then a visible lifecycle fallback if the target still cannot be restored.
+- Added visibility return, page restore, focus, hash navigation, and history navigation recovery hooks that rebind/rebuild the shell and render cached data without starting retry loops.
+- Added a compact in-panel lifecycle notice/fallback so recovery/failure context is visible inside the panel instead of relying only on browser console output.
+- Bumped the integration/frontend cache version to `0.3.2`.
+
+Boundaries kept:
+
+- No endpoint URLs, auth checks, admin-only enforcement, backend data shaping, source readers, source coverage semantics, service calls, mutation handlers, config writes, `.storage` access, secret access, token scraping, persistent preferences, or new explorer scopes changed.
+- The existing Home Assistant `hass.callApi("GET", ...)` protected data path remains unchanged.
+
+### 0.3.2 validation results
+
+Backend syntax:
+
+```powershell
+python -c "import ast, pathlib; files=[pathlib.Path('custom_components/ha_context_explorer_probe/__init__.py'), pathlib.Path('custom_components/ha_context_explorer_probe/api.py'), pathlib.Path('custom_components/ha_context_explorer_probe/logic.py'), pathlib.Path('custom_components/ha_context_explorer_probe/privacy.py'), pathlib.Path('custom_components/ha_context_explorer_probe/config_flow.py'), pathlib.Path('custom_components/ha_context_explorer_probe/const.py')]; [ast.parse(path.read_text(encoding='utf-8'), filename=str(path)) for path in files]; print('AST syntax OK for', len(files), 'backend files')"
+```
+
+Result:
+
+```text
+AST syntax OK for 6 backend files
+```
+
+Manifest JSON:
+
+```powershell
+python -c "import json, pathlib; json.loads(pathlib.Path('custom_components/ha_context_explorer_probe/manifest.json').read_text(encoding='utf-8')); print('manifest JSON OK')"
+```
+
+Result:
+
+```text
+manifest JSON OK
+```
+
+Frontend syntax check:
+
+```powershell
+& 'C:\Users\daniel\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --check custom_components\ha_context_explorer_probe\www\app.js
+```
+
+Result:
+
+```text
+No syntax errors reported.
+```
+
+Safety scan:
+
+```powershell
+Get-ChildItem -Path custom_components\ha_context_explorer_probe -Recurse -File | Select-String -Pattern "def post|def put|def patch|def delete|hass\.services\.async_call|async_register_service|register_admin_service|\.async_set\(|\.storage|secrets\.yaml|localStorage|sessionStorage|Authorization|Bearer"
+```
+
+Result:
+
+```text
+No matches.
+```
+
+Auth/admin scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\api.py | Select-String -Pattern "requires_auth = True|_require_admin|is_admin|Unauthorized|ProbeDataView|logic"
+```
+
+Result:
+
+```text
+JSON views still set requires_auth = True and call _require_admin(); the logic route remains registered through the same ProbeDataView path.
+```
+
+Frontend lifecycle scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\www\app.js | Select-String -Pattern "recoverPanelShell|scheduleLifecycleRecovery|visibilitychange|pageshow|focus|popstate|hashchange|lifecycle-notice|Panel target missing|hass\.callApi"
+```
+
+Result:
+
+```text
+The panel frontend contains active host/root recovery, visibility/page/navigation recovery hooks, lifecycle notice/fallback rendering, strict missing-target recovery, and the unchanged hass.callApi GET path.
+```
+
+Logic source-reader scan:
+
+```powershell
+Get-Content -Path custom_components\ha_context_explorer_probe\logic.py | Select-String -Pattern "automations.yaml|scripts.yaml|async_add_executor_job|read_text|\.storage|secrets\.yaml"
+```
+
+Result:
+
+```text
+Logic source coverage remains the existing starter slice: canonical automations.yaml and scripts.yaml are read through async_add_executor_job. No .storage or secrets.yaml access was added.
+```
+
+Reference-data safety:
+
+```powershell
+Get-ChildItem -Path custom_components,docs -Recurse -File | Select-String -Pattern "_local_reference|probe_input"
+```
+
+Result:
+
+```text
+No implementation file references _local_reference or probe_input. A policy-only _local_reference mention remains in AI project context.
+```
+
+Runtime caveat:
+
+- This sandbox cannot reproduce the user's live Home Assistant navigation/remount/visibility-return behavior.
+- The code path is hardened against stale host/root state, missing shell targets, and connected-but-not-reconnected panel returns, but live confirmation remains required.
+- Manual local replacement of backend/Python integration files still typically requires a Home Assistant restart. This is not HACS/update-channel work.
+
 ## 0.3.1 lifecycle bugfix review
 
 Task: `fix-panel-lifecycle-blank-screen`
@@ -608,7 +855,7 @@ No matches.
 
 ## Current Scope Summary
 
-Phase 2 implemented HA Context Explorer Probe `0.2.0` as the first real read-only explorer slice. Version `0.3.1` is the current branch state and keeps the `0.3.0` logic/reference starter slice while adding focused native-panel lifecycle hardening on top of the 0.2.x foundation.
+Phase 2 implemented HA Context Explorer Probe `0.2.0` as the first real read-only explorer slice. Version `0.3.3` is the current branch state and keeps the `0.3.0` logic/reference starter slice while adding deeper native-panel lifecycle and empty-wrapper recovery hardening on top of the 0.2.x foundation.
 
 Implemented real data scopes:
 
@@ -755,7 +1002,7 @@ At the time of the original Phase-2 review, `0.2.0` was confirmed in:
 - `CHANGELOG.md`
 - `docs/ai/AI_CURRENT_STATE.md`
 
-Current version alignment is covered by the newer 0.3.1 review section above. Historical `0.1.1`, `0.1.0`, and prior corrective-version references remain only in changelog/change-history/review context.
+Current version alignment is covered by the newer 0.3.3 review section above. Historical `0.1.1`, `0.1.0`, and prior corrective-version references remain only in changelog/change-history/review context.
 
 ### Historical Home Assistant runtime caveat
 
@@ -771,4 +1018,4 @@ Result:
 homeassistant available: False
 ```
 
-This was the 0.2.0 local-sandbox caveat before live runtime testing and before the native custom panel bridge. The native panel bridge behavior was confirmed working in the user's tested Home Assistant runtime for the 0.2.2 implemented scopes, while universal compatibility across all HA environments, live 0.3.0 logic-slice behavior, and live 0.3.1 lifecycle behavior remain unproven in this sandbox.
+This was the 0.2.0 local-sandbox caveat before live runtime testing and before the native custom panel bridge. The native panel bridge behavior was confirmed working in the user's tested Home Assistant runtime for the 0.2.2 implemented scopes, while universal compatibility across all HA environments, live 0.3.0 logic-slice behavior, and live 0.3.3 lifecycle behavior remain unproven in this sandbox.

@@ -1,5 +1,40 @@
 # AI Change History
 
+## 0.3.3
+
+Focused follow-up for the live-observed empty `ha-panel-custom` wrapper failure mode.
+
+Key changes:
+
+- Added a global, route-specific recovery path that can run even when `ha-context-explorer-probe-panel` is no longer present in the active DOM.
+- Detects the probe `ha-panel-custom` wrapper only when the current route and registered panel match this integration.
+- Remounts one missing probe child element when the wrapper is empty, then syncs `hass`, `panel`, `route`, and `narrow` from the Home Assistant wrapper.
+- Avoids duplicate mounts by doing nothing when the probe child already exists or the wrapper is not empty.
+- Added a wrapper-level visible fallback if remounting fails.
+- Bumped the frontend/cache version to `0.3.3`.
+
+Important boundaries kept:
+
+- No endpoint URLs, auth checks, admin-only enforcement, backend data shaping, source readers, service calls, mutation handlers, config writes, `.storage` access, secret access, token scraping, persistent preferences, or new explorer scopes changed.
+- This hardens the newly diagnosed empty-wrapper path. Live Home Assistant confirmation is still required before calling the blank-screen issue fully solved.
+
+## 0.3.2
+
+Focused follow-up for blank-screen states that could still occur after the first lifecycle hardening pass.
+
+Key changes:
+
+- Adopted the current Home Assistant panel element during `hass` updates instead of returning early when global host/root state is stale.
+- Added stricter shell integrity checks so missing panel targets trigger shell rebuild/fallback instead of silent rendering into detached dummy nodes.
+- Added visibility return, page restore, focus, hash, and history navigation recovery hooks.
+- Added compact in-panel lifecycle recovery/failure diagnostics.
+- Bumped the frontend/cache version to `0.3.2`.
+
+Important boundaries kept:
+
+- No endpoint URLs, auth checks, admin-only enforcement, backend data shaping, source readers, service calls, mutation handlers, config writes, `.storage` access, secret access, token scraping, persistent preferences, or new explorer scopes changed.
+- This is still a frontend lifecycle bugfix. Live Home Assistant confirmation is required before calling the blank-screen issue fully solved.
+
 ## 0.3.1
 
 Focused native custom-panel lifecycle robustness pass.

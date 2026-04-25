@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.3
+
+- Added a focused recovery path for the live-observed case where Home Assistant leaves `ha-panel-custom` mounted but empty.
+- Detects the active probe panel wrapper only on the probe route and only when the probe child element is missing.
+- Remounts a single `ha-context-explorer-probe-panel` child and syncs `hass`, `panel`, `route`, and `narrow` from the Home Assistant wrapper.
+- Avoids duplicate mounts by doing nothing when the probe child already exists or when the wrapper is not empty.
+- Adds a compact wrapper-level fallback if remounting fails.
+- Kept endpoint URLs, authenticated/admin-only GET behavior, source readers, source coverage semantics, raw-ID toggle behavior, and read-only constraints unchanged.
+- Bumped the integration version to `0.3.3`.
+
+## 0.3.2
+
+- Deepened native custom panel lifecycle recovery after the initial `0.3.1` hardening proved insufficient in live runtime testing.
+- Adopted the active Home Assistant panel element from `hass` updates instead of returning early when stale global host/root state points to an old instance.
+- Added shell integrity checks that rebuild missing or incomplete panel DOM instead of silently rendering into detached dummy nodes.
+- Added visibility, page-restore, focus, and browser navigation recovery hooks that rebind the shell and render cached data without adding retry loops.
+- Added a compact in-panel lifecycle notice/fallback with privacy-safe context for recovery or failure states.
+- Kept endpoint URLs, authenticated/admin-only GET behavior, source readers, source coverage semantics, raw-ID toggle behavior, and read-only constraints unchanged.
+- Bumped the integration version to `0.3.2`.
+
 ## 0.3.1
 
 - Hardened the native custom panel lifecycle against Home Assistant internal navigation, remount, and reconnect cases.

@@ -1,5 +1,5 @@
 const API_PATH_BASE = "ha_context_explorer_probe";
-const APP_VERSION = "0.3.1";
+const APP_VERSION = "0.3.3";
 const PANEL_ELEMENT = "ha-context-explorer-probe-panel";
 const STATIC_BASE = "/local/ha_context_explorer_probe";
 const SCOPES = ["overview", "entities", "devices", "areas", "integrations", "relationships", "logic"];
@@ -51,6 +51,9 @@ const appState = {
   host: null,
   root: null,
   hass: null,
+  panel: null,
+  route: null,
+  narrow: false,
   initialized: false,
   activeScope: "overview",
   data: {},
@@ -59,6 +62,15 @@ const appState = {
   entitySearch: "",
   entityDomain: "",
   showRawIds: false,
+  lifecycle: {
+    hooksBound: false,
+    recoveryScheduled: false,
+    lastReason: "",
+    lastRecovery: "",
+    lastFailure: "",
+    wrapperRecoveryScheduled: false,
+    wrapperObserver: null,
+  },
 };
 
 const SOURCE_STATUS_LABELS = {
@@ -72,52 +84,36 @@ const SOURCE_STATUS_LABELS = {
 class HAContextExplorerProbePanel extends HTMLElement {
   set hass(hass) {
     appState.hass = hass;
-    if (appState.host !== this || !appState.root || !appState.initialized) {
+
+    if (!recoverPanelShell(this, "hass update")) {
       return;
     }
 
-    const scope = appState.activeScope || "overview";
-    if (!appState.data[scope] && !appState.loading[scope]) {
-      loadScope(scope);
-    } else if (appState.loading[scope]) {
-      loadScope(scope);
-    } else {
-      renderScope(scope);
-    }
+    resumePanel("hass update");
   }
 
   set narrow(value) {
-    this.toggleAttribute("narrow", Boolean(value));
+    appState.narrow = Boolean(value);
+    this.toggleAttribute("narrow", appState.narrow);
   }
 
   set panel(value) {
+    appState.panel = value;
     this._panel = value;
   }
 
   set route(value) {
+    appState.route = value;
     this._route = value;
   }
 
   connectedCallback() {
     try {
-      const root = this.shadowRoot || this.attachShadow({ mode: "open" });
-      appState.host = this;
-      appState.root = root;
-
-      if (!isShellReady(root)) {
-        initializeShell(root);
-      } else {
-        appState.initialized = true;
-        syncShellState();
-      }
-
-      if (appState.hass) {
-        loadScope(appState.activeScope || "overview");
-      } else {
-        setStatus("Waiting", "Waiting for Home Assistant panel context");
-      }
+      bindLifecycleHooks();
+      recoverPanelShell(this, "connected");
+      resumePanel("connected");
     } catch (error) {
-      renderLifecycleFailure(this, error);
+      renderLifecycleFailure(this, error, "connected");
     }
   }
 
@@ -134,13 +130,339 @@ if (!customElements.get(PANEL_ELEMENT)) {
   customElements.define(PANEL_ELEMENT, HAContextExplorerProbePanel);
 }
 
+bindLifecycleHooks();
+scheduleWrapperRecovery("module loaded");
+
 function isShellReady(root) {
   return Boolean(
     root &&
       root.__haContextExplorerProbeVersion === APP_VERSION &&
+      root.host === appState.host &&
+      root.getElementById("probe-shell") &&
       root.getElementById("view-overview") &&
       root.getElementById("raw-id-toggle")
   );
+}
+
+function bindLifecycleHooks() {
+  if (appState.lifecycle.hooksBound) {
+    return;
+  }
+
+  appState.lifecycle.hooksBound = true;
+  window.addEventListener("pageshow", () => scheduleRecoveryChecks("page restored"));
+  window.addEventListener("focus", () => scheduleRecoveryChecks("window focus"));
+  window.addEventListener("popstate", () => scheduleRecoveryChecks("history navigation"));
+  window.addEventListener("hashchange", () => scheduleRecoveryChecks("hash navigation"));
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      scheduleRecoveryChecks("visibility return");
+    }
+  });
+
+  bindWrapperObserver();
+}
+
+function scheduleRecoveryChecks(reason) {
+  scheduleWrapperRecovery(reason);
+  scheduleLifecycleRecovery(reason);
+}
+
+function bindWrapperObserver() {
+  if (appState.lifecycle.wrapperObserver || typeof MutationObserver !== "function") {
+    return;
+  }
+
+  const attachObserver = () => {
+    if (!document.body || appState.lifecycle.wrapperObserver) {
+      return;
+    }
+
+    appState.lifecycle.wrapperObserver = new MutationObserver(() => {
+      if (isProbablyProbeRoute()) {
+        scheduleWrapperRecovery("panel wrapper mutation");
+      }
+    });
+    appState.lifecycle.wrapperObserver.observe(document.body, { childList: true, subtree: true });
+  };
+
+  if (document.body) {
+    attachObserver();
+  } else {
+    window.addEventListener("DOMContentLoaded", attachObserver, { once: true });
+  }
+}
+
+function scheduleWrapperRecovery(reason) {
+  if (appState.lifecycle.wrapperRecoveryScheduled) {
+    return;
+  }
+
+  appState.lifecycle.wrapperRecoveryScheduled = true;
+  window.setTimeout(() => {
+    appState.lifecycle.wrapperRecoveryScheduled = false;
+    try {
+      ensureProbePanelMounted(reason);
+    } catch (error) {
+      renderWrapperRecoveryFailure(reason, error);
+    }
+  }, 0);
+}
+
+function ensureProbePanelMounted(reason) {
+  const wrapper = findProbePanelCustom();
+  if (!wrapper || !isProbePanelWrapper(wrapper)) {
+    return false;
+  }
+
+  const existing = wrapper.querySelector(PANEL_ELEMENT);
+  if (existing) {
+    syncProbeElementContext(existing, wrapper);
+    return false;
+  }
+
+  if (!isPanelWrapperEmpty(wrapper) || !customElements.get(PANEL_ELEMENT)) {
+    return false;
+  }
+
+  const element = document.createElement(PANEL_ELEMENT);
+  wrapper.append(element);
+  syncProbeElementContext(element, wrapper);
+  noteWrapperRecovery(reason, "Home Assistant panel wrapper was empty; remounted the probe panel element.");
+  return true;
+}
+
+function findProbePanelCustom() {
+  const direct = Array.from(document.querySelectorAll("ha-panel-custom")).find(isProbePanelWrapper);
+  if (direct) {
+    return direct;
+  }
+  return findElementDeep(document, "ha-panel-custom", isProbePanelWrapper);
+}
+
+function findElementDeep(root, localName, predicate) {
+  const queue = [root];
+  let visited = 0;
+
+  while (queue.length && visited < 2500) {
+    const current = queue.shift();
+    visited += 1;
+
+    if (current?.nodeType === Node.ELEMENT_NODE) {
+      if (current.localName === localName && predicate(current)) {
+        return current;
+      }
+      if (current.shadowRoot) {
+        queue.push(current.shadowRoot);
+      }
+    }
+
+    const children = current?.children ? Array.from(current.children) : [];
+    children.forEach((child) => queue.push(child));
+  }
+
+  return null;
+}
+
+function isProbePanelWrapper(wrapper) {
+  const hass = wrapper?.hass || appState.hass;
+  const registeredPanel = hass?.panels?.[API_PATH_BASE];
+  const wrapperPanel = wrapper?.panel || appState.panel;
+  const hasProbeRegistration = Boolean(registeredPanel || panelValueLooksProbe(wrapperPanel));
+  const registeredLooksProbe = Boolean(registeredPanel) || panelValueLooksProbe(wrapperPanel);
+  const wrapperPanelMatches = wrapperPanel
+    ? panelValueLooksProbe(wrapperPanel) || wrapperPanel === registeredPanel
+    : Boolean(registeredPanel);
+
+  return Boolean(
+    hasProbeRegistration &&
+      registeredLooksProbe &&
+      wrapperPanelMatches &&
+      customElements.get(PANEL_ELEMENT) &&
+      isProbablyProbeRoute(wrapper)
+  );
+}
+
+function panelValueLooksProbe(panel) {
+  if (!panel) {
+    return false;
+  }
+
+  return [
+    panel.url_path,
+    panel.urlPath,
+    panel.frontend_url_path,
+    panel.frontendUrlPath,
+    panel.component_name,
+    panel.componentName,
+    panel.webcomponent_name,
+    panel.webcomponentName,
+  ]
+    .filter(Boolean)
+    .some((value) => String(value).includes(API_PATH_BASE) || String(value) === PANEL_ELEMENT);
+}
+
+function isProbablyProbeRoute(wrapper) {
+  const route = wrapper?.route || appState.route || {};
+  return [
+    window.location.pathname,
+    window.location.hash,
+    route.path,
+    route.prefix,
+    route.tail,
+  ]
+    .filter(Boolean)
+    .some((value) => String(value).includes(API_PATH_BASE));
+}
+
+function isPanelWrapperEmpty(wrapper) {
+  return !wrapper.querySelector(PANEL_ELEMENT) && wrapper.children.length === 0 && !String(wrapper.innerHTML || "").trim();
+}
+
+function syncProbeElementContext(element, wrapper) {
+  const hass = wrapper?.hass || appState.hass;
+  const panel = wrapper?.panel || appState.panel || hass?.panels?.[API_PATH_BASE];
+  const route = wrapper?.route || appState.route;
+
+  if (panel) {
+    element.panel = panel;
+  }
+  if (route) {
+    element.route = route;
+  }
+  if (wrapper && "narrow" in wrapper) {
+    element.narrow = Boolean(wrapper.narrow);
+  } else {
+    element.narrow = appState.narrow;
+  }
+  if (hass) {
+    element.hass = hass;
+  }
+}
+
+function noteWrapperRecovery(reason, detail) {
+  appState.lifecycle.lastRecovery = `${reason}: ${detail}`;
+  if (appState.host && appState.host.isConnected) {
+    renderLifecycleNotice("Panel wrapper restored", detail);
+  }
+}
+
+function renderWrapperRecoveryFailure(reason, error) {
+  const wrapper = findProbePanelCustom();
+  if (!wrapper || !isPanelWrapperEmpty(wrapper)) {
+    return;
+  }
+
+  wrapper.innerHTML = `
+    <link rel="stylesheet" href="${STATIC_BASE}/styles.css?v=${APP_VERSION}" />
+    <div class="app-shell lifecycle-fallback">
+      <section class="empty-state">
+        <strong>Panel wrapper could not be restored</strong>
+        <p>Home Assistant left the custom panel wrapper mounted, but the probe panel element could not be reattached.</p>
+        <p>Lifecycle context: ${escapeText(reason)}.</p>
+        <p id="wrapper-recovery-error"></p>
+      </section>
+    </div>
+  `;
+
+  const detail = wrapper.querySelector("#wrapper-recovery-error");
+  if (detail) {
+    detail.textContent = error instanceof Error ? error.message : String(error || "Unknown wrapper recovery error");
+  }
+}
+
+function scheduleLifecycleRecovery(reason) {
+  if (appState.lifecycle.recoveryScheduled) {
+    return;
+  }
+
+  appState.lifecycle.recoveryScheduled = true;
+  window.setTimeout(() => {
+    appState.lifecycle.recoveryScheduled = false;
+    const host = appState.host;
+    if (!host || !host.isConnected) {
+      return;
+    }
+
+    try {
+      if (recoverPanelShell(host, reason)) {
+        resumePanel(reason);
+      }
+    } catch (error) {
+      renderLifecycleFailure(host, error, reason);
+    }
+  }, 0);
+}
+
+function recoverPanelShell(host, reason) {
+  if (!host) {
+    return false;
+  }
+
+  const previousHost = appState.host;
+  const previousRoot = appState.root;
+  const wasInitialized = appState.initialized;
+  const root = host.shadowRoot || host.attachShadow({ mode: "open" });
+  const hostChanged = previousHost && previousHost !== host;
+  const rootChanged = previousRoot && previousRoot !== root;
+
+  appState.host = host;
+  appState.root = root;
+
+  const shellReady = isShellReady(root);
+  if (!shellReady) {
+    initializeShell(root);
+    const hadPreviousShell = Boolean(wasInitialized || previousHost || previousRoot || rootChanged || hostChanged);
+    if (hadPreviousShell) {
+      noteLifecycleRecovery(reason, shellRecoveryDetail(true, hostChanged, rootChanged));
+    }
+    return true;
+  }
+
+  appState.initialized = true;
+  syncShellState();
+  if (hostChanged || rootChanged) {
+    noteLifecycleRecovery(reason, shellRecoveryDetail(false, hostChanged, rootChanged));
+  }
+  return true;
+}
+
+function shellRecoveryDetail(shellWasMissing, hostChanged, rootChanged) {
+  if (shellWasMissing) {
+    return "Shell missing or incomplete; rebuilt active panel shell.";
+  }
+  if (hostChanged) {
+    return "Host mismatch detected; rebound the active panel instance.";
+  }
+  if (rootChanged) {
+    return "Shadow root mismatch detected; rebound the active panel root.";
+  }
+  return "Shell integrity check passed after lifecycle recovery.";
+}
+
+function resumePanel(reason) {
+  if (!appState.root || !isShellReady(appState.root)) {
+    return;
+  }
+
+  appState.lifecycle.lastReason = reason;
+  if (!appState.host?.isConnected) {
+    setStatus("Waiting", "Panel is detached; waiting for Home Assistant to remount it");
+    return;
+  }
+
+  const scope = appState.activeScope || "overview";
+  if (!appState.hass || typeof appState.hass.callApi !== "function") {
+    setStatus("Waiting", "Waiting for Home Assistant panel context");
+    return;
+  }
+
+  if (appState.loading[scope] || !appState.data[scope]) {
+    loadScope(scope);
+    return;
+  }
+
+  renderScope(scope);
 }
 
 function initializeShell(root) {
@@ -178,17 +500,36 @@ function syncShellState() {
   }
 }
 
-function renderLifecycleFailure(host, error) {
+function noteLifecycleRecovery(reason, detail) {
+  appState.lifecycle.lastRecovery = `${reason}: ${detail}`;
+  renderLifecycleNotice("Panel shell restored", detail);
+}
+
+function renderLifecycleNotice(title, detail) {
+  const notice = byId("lifecycle-notice");
+  if (!notice) {
+    return;
+  }
+
+  notice.hidden = false;
+  notice.textContent = "";
+  notice.append(el("strong", "", title));
+  notice.append(el("p", "", detail));
+}
+
+function renderLifecycleFailure(host, error, reason = "lifecycle restore") {
   const root = host.shadowRoot || host.attachShadow({ mode: "open" });
   appState.host = host;
   appState.root = root;
   appState.initialized = false;
+  appState.lifecycle.lastFailure = reason;
   root.innerHTML = `
     <link rel="stylesheet" href="${STATIC_BASE}/styles.css?v=${APP_VERSION}" />
     <div class="app-shell lifecycle-fallback">
       <section class="empty-state">
         <strong>Panel could not be restored</strong>
         <p>The Home Assistant panel shell loaded, but its frontend lifecycle failed before the explorer UI could be rebuilt.</p>
+        <p>Lifecycle context: ${escapeText(reason)}.</p>
         <p>Navigate away and back to retry the panel mount; reload the browser page if this fallback remains.</p>
         <p id="lifecycle-error-detail"></p>
       </section>
@@ -204,7 +545,7 @@ function renderLifecycleFailure(host, error) {
 function shellHtml() {
   return `
     <link rel="stylesheet" href="${STATIC_BASE}/styles.css?v=${APP_VERSION}" />
-    <div class="app-shell">
+    <div class="app-shell" id="probe-shell">
       <header class="topbar">
         <div>
           <p class="eyebrow">Context Explorer Probe</p>
@@ -231,6 +572,7 @@ function shellHtml() {
       </nav>
 
       <section class="auth-notice" id="auth-notice" hidden aria-live="polite"></section>
+      <section class="lifecycle-notice" id="lifecycle-notice" hidden aria-live="polite"></section>
 
       <main class="workspace">
         <section class="view active" id="view-overview">
@@ -460,24 +802,28 @@ async function loadScope(scope) {
 }
 
 function renderScope(scope) {
-  if (!appState.root) {
-    return;
-  }
+  try {
+    if (!appState.host || !recoverPanelShell(appState.host, `render ${scope}`)) {
+      return;
+    }
 
-  if (scope === "overview") {
-    renderOverview();
-  } else if (scope === "entities") {
-    renderEntities();
-  } else if (scope === "devices") {
-    renderDevices();
-  } else if (scope === "areas") {
-    renderAreas();
-  } else if (scope === "integrations") {
-    renderIntegrations();
-  } else if (scope === "relationships") {
-    renderRelationships();
-  } else if (scope === "logic") {
-    renderLogic();
+    if (scope === "overview") {
+      renderOverview();
+    } else if (scope === "entities") {
+      renderEntities();
+    } else if (scope === "devices") {
+      renderDevices();
+    } else if (scope === "areas") {
+      renderAreas();
+    } else if (scope === "integrations") {
+      renderIntegrations();
+    } else if (scope === "relationships") {
+      renderRelationships();
+    } else if (scope === "logic") {
+      renderLogic();
+    }
+  } catch (error) {
+    renderLifecycleFailure(appState.host, error, `render ${scope}`);
   }
 }
 
@@ -1025,7 +1371,14 @@ function setEmpty(targetId, title, body) {
 function clearById(id) {
   const target = byId(id);
   if (!target) {
-    return document.createElement("div");
+    if (appState.host && recoverPanelShell(appState.host, `missing target ${id}`)) {
+      const recoveredTarget = byId(id);
+      if (recoveredTarget) {
+        recoveredTarget.textContent = "";
+        return recoveredTarget;
+      }
+    }
+    throw new Error(`Panel target missing: ${id}`);
   }
 
   target.textContent = "";
@@ -1041,6 +1394,12 @@ function el(tag, className, text) {
   if (className) element.className = className;
   if (text !== undefined) element.textContent = text;
   return element;
+}
+
+function escapeText(value) {
+  const span = document.createElement("span");
+  span.textContent = String(value || "");
+  return span.innerHTML;
 }
 
 function badge(text) {
