@@ -6,7 +6,7 @@ from homeassistant import config_entries
 from .const import DOMAIN
 
 
-class HAContextExplorerProbeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class HAContextExplorerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Minimal config flow."""
 
     VERSION = 1

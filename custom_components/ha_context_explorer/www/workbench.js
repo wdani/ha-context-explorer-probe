@@ -1,5 +1,5 @@
 export const PRODUCT_NAME = "HA Context Explorer";
-export const WORKBENCH_STORAGE_KEY = "ha_context_explorer_probe.developer_workbench.enabled";
+export const WORKBENCH_STORAGE_KEY = "ha_context_explorer.developer_workbench.enabled";
 export const WORKBENCH_EXPORT_SCHEMA = "developer_workbench_bundle/v1";
 export const WORKBENCH_EVENT_LIMIT = 80;
 

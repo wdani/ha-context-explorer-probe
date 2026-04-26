@@ -12,16 +12,27 @@ import {
   persistWorkbenchEnabled,
   readWorkbenchEnabled,
   sanitizeForWorkbench,
-} from "./workbench.js?v=0.4.1";
+} from "./workbench.js?v=0.5.0";
 
-const API_PATH_BASE = "ha_context_explorer_probe";
-const APP_VERSION = "0.4.1";
-const PANEL_ELEMENT = "ha-context-explorer-probe-panel";
-const STATIC_BASE = "/local/ha_context_explorer_probe";
+const API_PATH_BASE = "ha_context_explorer";
+const APP_VERSION = "0.5.0";
+const PANEL_ELEMENT = "ha-context-explorer-panel";
+const STATIC_BASE = "/local/ha_context_explorer";
 const SCOPES = ["overview", "entities", "devices", "areas", "integrations", "relationships", "logic"];
 const WORKBENCH_PANES = ["review", "payload", "runtime", "privacy", "actions"];
+const CONNECTED_STATUS_DETAIL = "Admin data endpoint available";
+const DETACHED_STATUS_DETAIL = "Panel is detached; waiting for Home Assistant to remount it";
 const WORKBENCH_COPY_UNAVAILABLE = "Clipboard copy is unavailable in this browser context. Download JSON remains available.";
-const AGGREGATED_EVENT_TYPES = new Set(["scope_rendered"]);
+const AGGREGATED_EVENT_TYPES = new Set([
+  "scope_rendered",
+  "lifecycle_recovery",
+  "duplicate_panel_instances_detected",
+  "active_panel_instance_adopted",
+  "interaction_handlers_rebound",
+  "lifecycle_detached_state_cleared",
+  "active_panel_confirmed_connected",
+  "lifecycle_status_reconciled",
+]);
 const DEFAULT_MASK_TOKENS = {
   "[masked-ipv4]": { reason: "ipv4_like_value", description: "IPv4-like string value masked before display or export." },
   "[masked-mac]": { reason: "mac_like_value", description: "MAC-like string value masked before display or export." },
@@ -94,6 +105,9 @@ const appState = {
     lastFailure: "",
     wrapperRecoveryScheduled: false,
     wrapperObserver: null,
+    detachedWaiting: false,
+    connectedConfirmed: false,
+    lastStatusReconciliation: "",
   },
 };
 
@@ -126,9 +140,16 @@ const SOURCE_STATUS_LABELS = {
   partially_parsed: "Partially parsed",
 };
 
-class HAContextExplorerProbePanel extends HTMLElement {
+class HAContextExplorerPanel extends HTMLElement {
   set hass(hass) {
     appState.hass = hass;
+
+    const wrapper = findContainingPanelCustom(this) || findExplorerPanelCustom();
+    const active = normalizeExplorerPanelInstances(wrapper, this, "hass update");
+    if (active && active !== this) {
+      syncExplorerElementContext(active, wrapper);
+      return;
+    }
 
     if (!recoverPanelShell(this, "hass update")) {
       return;
@@ -155,6 +176,12 @@ class HAContextExplorerProbePanel extends HTMLElement {
   connectedCallback() {
     try {
       bindLifecycleHooks();
+      const wrapper = findContainingPanelCustom(this) || findExplorerPanelCustom();
+      const active = normalizeExplorerPanelInstances(wrapper, this, "connected");
+      if (active && active !== this) {
+        syncExplorerElementContext(active, wrapper);
+        return;
+      }
       recoverPanelShell(this, "connected");
       resumePanel("connected");
     } catch (error) {
@@ -167,12 +194,13 @@ class HAContextExplorerProbePanel extends HTMLElement {
       appState.host = null;
       appState.root = null;
       appState.initialized = false;
+      appState.lifecycle.connectedConfirmed = false;
     }
   }
 }
 
 if (!customElements.get(PANEL_ELEMENT)) {
-  customElements.define(PANEL_ELEMENT, HAContextExplorerProbePanel);
+  customElements.define(PANEL_ELEMENT, HAContextExplorerPanel);
 }
 
 bindLifecycleHooks();
@@ -181,9 +209,10 @@ scheduleWrapperRecovery("module loaded");
 function isShellReady(root) {
   return Boolean(
     root &&
-      root.__haContextExplorerProbeVersion === APP_VERSION &&
+      root.__haContextExplorerVersion === APP_VERSION &&
+      root.__haContextExplorerBindingsVersion === APP_VERSION &&
       root.host === appState.host &&
-      root.getElementById("probe-shell") &&
+      root.getElementById("explorer-shell") &&
       root.getElementById("view-overview") &&
       root.getElementById("raw-id-toggle")
   );
@@ -224,7 +253,7 @@ function bindWrapperObserver() {
     }
 
     appState.lifecycle.wrapperObserver = new MutationObserver(() => {
-      if (isProbablyProbeRoute()) {
+      if (isProbablyExplorerRoute()) {
         scheduleWrapperRecovery("panel wrapper mutation");
       }
     });
@@ -247,22 +276,23 @@ function scheduleWrapperRecovery(reason) {
   window.setTimeout(() => {
     appState.lifecycle.wrapperRecoveryScheduled = false;
     try {
-      ensureProbePanelMounted(reason);
+      ensureExplorerPanelMounted(reason);
     } catch (error) {
       renderWrapperRecoveryFailure(reason, error);
     }
   }, 0);
 }
 
-function ensureProbePanelMounted(reason) {
-  const wrapper = findProbePanelCustom();
-  if (!wrapper || !isProbePanelWrapper(wrapper)) {
+function ensureExplorerPanelMounted(reason) {
+  const wrapper = findExplorerPanelCustom();
+  if (!wrapper || !isExplorerPanelWrapper(wrapper)) {
     return false;
   }
 
-  const existing = wrapper.querySelector(PANEL_ELEMENT);
+  const active = normalizeExplorerPanelInstances(wrapper, null, reason);
+  const existing = active || wrapper.querySelector(PANEL_ELEMENT);
   if (existing) {
-    syncProbeElementContext(existing, wrapper);
+    syncExplorerElementContext(existing, wrapper);
     return false;
   }
 
@@ -272,30 +302,46 @@ function ensureProbePanelMounted(reason) {
 
   const element = document.createElement(PANEL_ELEMENT);
   wrapper.append(element);
-  syncProbeElementContext(element, wrapper);
+  syncExplorerElementContext(element, wrapper);
   noteWrapperRecovery(reason, "Home Assistant panel wrapper was empty; remounted the HA Context Explorer panel element.");
   return true;
 }
 
-function findProbePanelCustom() {
-  const direct = Array.from(document.querySelectorAll("ha-panel-custom")).find(isProbePanelWrapper);
+function findExplorerPanelCustom() {
+  const direct = Array.from(document.querySelectorAll("ha-panel-custom")).find(isExplorerPanelWrapper);
   if (direct) {
     return direct;
   }
-  return findElementDeep(document, "ha-panel-custom", isProbePanelWrapper);
+  return findElementDeep(document, "ha-panel-custom", isExplorerPanelWrapper);
+}
+
+function findContainingPanelCustom(element) {
+  let current = element?.parentElement || null;
+  while (current) {
+    if (current.localName === "ha-panel-custom" && isExplorerPanelWrapper(current)) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return null;
 }
 
 function findElementDeep(root, localName, predicate) {
+  return findElementsDeep(root, localName, predicate, 1)[0] || null;
+}
+
+function findElementsDeep(root, localName, predicate = () => true, limit = 2500) {
   const queue = [root];
   let visited = 0;
+  const matches = [];
 
-  while (queue.length && visited < 2500) {
+  while (queue.length && visited < limit) {
     const current = queue.shift();
     visited += 1;
 
     if (current?.nodeType === Node.ELEMENT_NODE) {
       if (current.localName === localName && predicate(current)) {
-        return current;
+        matches.push(current);
       }
       if (current.shadowRoot) {
         queue.push(current.shadowRoot);
@@ -306,29 +352,94 @@ function findElementDeep(root, localName, predicate) {
     children.forEach((child) => queue.push(child));
   }
 
-  return null;
+  return matches;
 }
 
-function isProbePanelWrapper(wrapper) {
+function normalizeExplorerPanelInstances(wrapper, requestedHost, reason) {
+  if (!wrapper || !isProbablyExplorerRoute(wrapper) || !customElements.get(PANEL_ELEMENT)) {
+    return requestedHost?.isConnected ? requestedHost : null;
+  }
+
+  const allPanels = findElementsDeep(document, PANEL_ELEMENT).filter((panel) => panel.isConnected);
+  const wrapperPanels = allPanels.filter((panel) => wrapper.contains(panel));
+  const active = selectActivePanelInstance(wrapper, wrapperPanels, requestedHost, allPanels);
+  if (!active) {
+    return null;
+  }
+
+  const previousHost = appState.host;
+  const stalePanels = allPanels.filter((panel) => panel !== active);
+  if (allPanels.length > 1) {
+    appState.lifecycle.lastRecovery = `${reason}: ${allPanels.length} panel instances detected; keeping one active instance.`;
+    recordWorkbenchEvent("duplicate_panel_instances_detected", {
+      reason,
+      total: allPanels.length,
+      in_active_wrapper: wrapperPanels.length,
+    });
+  }
+
+  stalePanels.forEach((panel) => removeStalePanelInstance(panel, reason));
+  if ((previousHost && previousHost !== active) || (requestedHost && requestedHost !== active)) {
+    recordWorkbenchEvent("active_panel_instance_adopted", {
+      reason,
+      previous_connected: Boolean(previousHost?.isConnected || requestedHost?.isConnected),
+      active_in_wrapper: wrapper.contains(active),
+    });
+  }
+  return active;
+}
+
+function selectActivePanelInstance(wrapper, wrapperPanels, requestedHost, allPanels) {
+  const directChildren = Array.from(wrapper.children || []).filter((child) => child.localName === PANEL_ELEMENT);
+  if (directChildren.length) {
+    return directChildren[0];
+  }
+  if (requestedHost?.isConnected && wrapper.contains(requestedHost)) {
+    return requestedHost;
+  }
+  if (appState.host?.isConnected && wrapper.contains(appState.host)) {
+    return appState.host;
+  }
+  return wrapperPanels[0] || allPanels[0] || null;
+}
+
+function removeStalePanelInstance(panel, reason) {
+  if (!panel?.parentNode) {
+    return;
+  }
+  const hadActiveHost = appState.host === panel;
+  panel.remove();
+  recordWorkbenchEvent("stale_panel_instance_removed", {
+    reason,
+    had_active_host: hadActiveHost,
+  });
+  if (hadActiveHost) {
+    appState.host = null;
+    appState.root = null;
+    appState.initialized = false;
+  }
+}
+
+function isExplorerPanelWrapper(wrapper) {
   const hass = wrapper?.hass || appState.hass;
   const registeredPanel = hass?.panels?.[API_PATH_BASE];
   const wrapperPanel = wrapper?.panel || appState.panel;
-  const hasProbeRegistration = Boolean(registeredPanel || panelValueLooksProbe(wrapperPanel));
-  const registeredLooksProbe = Boolean(registeredPanel) || panelValueLooksProbe(wrapperPanel);
+  const hasExplorerRegistration = Boolean(registeredPanel || panelValueLooksExplorer(wrapperPanel));
+  const registeredLooksExplorer = Boolean(registeredPanel) || panelValueLooksExplorer(wrapperPanel);
   const wrapperPanelMatches = wrapperPanel
-    ? panelValueLooksProbe(wrapperPanel) || wrapperPanel === registeredPanel
+    ? panelValueLooksExplorer(wrapperPanel) || wrapperPanel === registeredPanel
     : Boolean(registeredPanel);
 
   return Boolean(
-    hasProbeRegistration &&
-      registeredLooksProbe &&
+    hasExplorerRegistration &&
+      registeredLooksExplorer &&
       wrapperPanelMatches &&
       customElements.get(PANEL_ELEMENT) &&
-      isProbablyProbeRoute(wrapper)
+      isProbablyExplorerRoute(wrapper)
   );
 }
 
-function panelValueLooksProbe(panel) {
+function panelValueLooksExplorer(panel) {
   if (!panel) {
     return false;
   }
@@ -347,7 +458,7 @@ function panelValueLooksProbe(panel) {
     .some((value) => String(value).includes(API_PATH_BASE) || String(value) === PANEL_ELEMENT);
 }
 
-function isProbablyProbeRoute(wrapper) {
+function isProbablyExplorerRoute(wrapper) {
   const route = wrapper?.route || appState.route || {};
   return [
     window.location.pathname,
@@ -364,7 +475,7 @@ function isPanelWrapperEmpty(wrapper) {
   return !wrapper.querySelector(PANEL_ELEMENT) && wrapper.children.length === 0 && !String(wrapper.innerHTML || "").trim();
 }
 
-function syncProbeElementContext(element, wrapper) {
+function syncExplorerElementContext(element, wrapper) {
   const hass = wrapper?.hass || appState.hass;
   const panel = wrapper?.panel || appState.panel || hass?.panels?.[API_PATH_BASE];
   const route = wrapper?.route || appState.route;
@@ -394,7 +505,7 @@ function noteWrapperRecovery(reason, detail) {
 }
 
 function renderWrapperRecoveryFailure(reason, error) {
-  const wrapper = findProbePanelCustom();
+  const wrapper = findExplorerPanelCustom();
   if (!wrapper || !isPanelWrapperEmpty(wrapper)) {
     return;
   }
@@ -445,6 +556,12 @@ function recoverPanelShell(host, reason) {
     return false;
   }
 
+  const wrapper = findContainingPanelCustom(host) || findExplorerPanelCustom();
+  const active = normalizeExplorerPanelInstances(wrapper, host, reason);
+  if (active && active !== host) {
+    host = active;
+  }
+
   const previousHost = appState.host;
   const previousRoot = appState.root;
   const wasInitialized = appState.initialized;
@@ -462,14 +579,21 @@ function recoverPanelShell(host, reason) {
     if (hadPreviousShell) {
       noteLifecycleRecovery(reason, shellRecoveryDetail(true, hostChanged, rootChanged));
     }
+    reconcileLifecycleStatus(reason);
+    return true;
+  }
+
+  if (hostChanged || rootChanged) {
+    initializeShell(root);
+    noteLifecycleRecovery(reason, "Active panel instance rebound; rebuilt shell and interaction handlers.");
+    recordWorkbenchEvent("interaction_handlers_rebound", { reason, host_changed: hostChanged, root_changed: rootChanged });
+    reconcileLifecycleStatus(reason);
     return true;
   }
 
   appState.initialized = true;
   syncShellState();
-  if (hostChanged || rootChanged) {
-    noteLifecycleRecovery(reason, shellRecoveryDetail(false, hostChanged, rootChanged));
-  }
+  reconcileLifecycleStatus(reason);
   return true;
 }
 
@@ -493,11 +617,14 @@ function resumePanel(reason) {
 
   appState.lifecycle.lastReason = reason;
   if (!appState.host?.isConnected) {
-    setStatus("Waiting", "Panel is detached; waiting for Home Assistant to remount it");
+    appState.lifecycle.detachedWaiting = true;
+    appState.lifecycle.connectedConfirmed = false;
+    setStatus("Waiting", DETACHED_STATUS_DETAIL);
     return;
   }
 
   const scope = appState.activeScope || "overview";
+  reconcileLifecycleStatus(reason);
   if (!appState.hass || typeof appState.hass.callApi !== "function") {
     setStatus("Waiting", "Waiting for Home Assistant panel context");
     return;
@@ -518,7 +645,8 @@ function resumePanel(reason) {
 function initializeShell(root) {
   appState.root = root;
   root.innerHTML = shellHtml();
-  root.__haContextExplorerProbeVersion = APP_VERSION;
+  root.__haContextExplorerVersion = APP_VERSION;
+  root.__haContextExplorerBindingsVersion = APP_VERSION;
   bindTabs();
   bindEntityFilters();
   bindRawToggle();
@@ -558,6 +686,74 @@ function noteLifecycleRecovery(reason, detail) {
   appState.lifecycle.lastRecovery = `${reason}: ${detail}`;
   recordWorkbenchEvent("lifecycle_recovery", { reason, detail });
   renderLifecycleNotice("Panel shell restored", detail);
+}
+
+function isActivePanelConnectedAndReady() {
+  const host = appState.host;
+  const root = appState.root;
+  return Boolean(host?.isConnected && root && host.shadowRoot === root && isShellReady(root));
+}
+
+function currentStatusIsDetachedWaiting() {
+  const label = byId("data-state-label")?.textContent?.trim();
+  const detail = byId("data-state-detail")?.textContent?.trim();
+  return label === "Waiting" && detail === DETACHED_STATUS_DETAIL;
+}
+
+function hasLoadedScopeData(scope) {
+  const data = appState.data[scope];
+  return Boolean(data && !data.error && !appState.authBlocked);
+}
+
+function restoreConnectedStatus() {
+  const scope = appState.activeScope || "overview";
+  const scopeData = appState.data[scope];
+  if (appState.authBlocked) {
+    setStatus("Auth required", "Protected data did not load");
+    return;
+  }
+  if (appState.loading[scope]) {
+    setStatus("Loading", "Reading Home Assistant data");
+    return;
+  }
+  if (scopeData?.error) {
+    setStatus("Unavailable", String(scopeData.error).slice(0, 160));
+    return;
+  }
+  if (hasLoadedScopeData(scope) || Object.keys(workbenchState.lastSuccessfulLoads).length || typeof appState.hass?.callApi === "function") {
+    setStatus("Connected", CONNECTED_STATUS_DETAIL);
+    return;
+  }
+  setStatus("Waiting", "Waiting for Home Assistant panel context");
+}
+
+function reconcileLifecycleStatus(reason) {
+  if (!isActivePanelConnectedAndReady()) {
+    return false;
+  }
+
+  const detachedStatusWasVisible = currentStatusIsDetachedWaiting();
+  const detachedStateWasStored = Boolean(appState.lifecycle.detachedWaiting);
+  if (!appState.lifecycle.connectedConfirmed || detachedStateWasStored || detachedStatusWasVisible) {
+    recordWorkbenchEvent("active_panel_confirmed_connected", { reason });
+  }
+
+  appState.lifecycle.connectedConfirmed = true;
+  if (!detachedStateWasStored && !detachedStatusWasVisible) {
+    return true;
+  }
+
+  appState.lifecycle.detachedWaiting = false;
+  appState.lifecycle.lastStatusReconciliation = `${reason}: detached waiting status cleared after active panel was confirmed connected.`;
+  appState.lifecycle.lastRecovery = appState.lifecycle.lastStatusReconciliation;
+  restoreConnectedStatus();
+  recordWorkbenchEvent("lifecycle_detached_state_cleared", { reason });
+  recordWorkbenchEvent("lifecycle_status_reconciled", {
+    reason,
+    active_scope: appState.activeScope || "overview",
+    status: byId("data-state-label")?.textContent?.trim() || "",
+  });
+  return true;
 }
 
 function renderLifecycleNotice(title, detail) {
@@ -601,7 +797,7 @@ function renderLifecycleFailure(host, error, reason = "lifecycle restore") {
 function shellHtml() {
   return `
     <link rel="stylesheet" href="${STATIC_BASE}/styles.css?v=${APP_VERSION}" />
-    <div class="app-shell" id="probe-shell">
+    <div class="app-shell" id="explorer-shell">
       <header class="topbar">
         <div>
           <p class="eyebrow">HA Context Explorer</p>
@@ -866,7 +1062,7 @@ function setWorkbenchEnabled(enabled, reason) {
 }
 
 function syncWorkbenchShell() {
-  const shell = byId("probe-shell");
+  const shell = byId("explorer-shell");
   const toggle = byId("workbench-toggle");
   const panel = byId("developer-workbench");
   if (!shell || !toggle || !panel) {
@@ -1241,7 +1437,7 @@ async function loadScope(scope) {
     };
     recordWorkbenchEvent("scope_fetch_success", { scope, root_fields: Object.keys(appState.data[scope] || {}).length });
     if (appState.root) {
-      setStatus("Connected", "Admin data endpoint available");
+      setStatus("Connected", CONNECTED_STATUS_DETAIL);
       clearGlobalNotice();
     }
   } catch (error) {

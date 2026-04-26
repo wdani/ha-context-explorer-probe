@@ -5,8 +5,8 @@
 The integration registers:
 
 - a Home Assistant native custom sidebar panel
-- static frontend assets under `/local/ha_context_explorer_probe`
-- seven authenticated admin-only data endpoints plus one authenticated admin-only workbench metadata endpoint under `/api/ha_context_explorer_probe`
+- static frontend assets under `/local/ha_context_explorer`
+- seven authenticated admin-only data endpoints plus one authenticated admin-only workbench metadata endpoint under `/api/ha_context_explorer`
 
 The panel frontend is a JavaScript module custom element registered through `panel_custom`. Home Assistant passes the frontend `hass` object to the element. Real data access is enforced at the JSON endpoints.
 
@@ -39,7 +39,7 @@ Masking is best-effort and not guaranteed anonymization.
 
 ## Frontend data flow
 
-The frontend calls each scope endpoint through `hass.callApi("GET", "ha_context_explorer_probe/<scope>")`. It does not hard-code browser storage token keys. If Home Assistant auth is unavailable to the custom panel runtime, the frontend records one global 401/403 protected-data failure and stops further endpoint requests for that page session.
+The frontend calls each scope endpoint through `hass.callApi("GET", "ha_context_explorer/<scope>")`. It does not hard-code browser storage token keys. If Home Assistant auth is unavailable to the custom panel runtime, the frontend records one global 401/403 protected-data failure and stops further endpoint requests for that page session.
 
 The custom panel frontend treats lifecycle recovery as both a shell-integrity and wrapper-integrity problem. It can adopt the active Home Assistant panel host from `hass` updates, rebuild missing shell DOM when required targets disappear, retry shell restoration after visibility/page/navigation return hooks, and recover the live-observed case where the active `ha-panel-custom` wrapper is mounted but empty. Wrapper recovery is route-specific, only remounts the HA Context Explorer child when it is missing and the wrapper is empty, and syncs `hass`, `panel`, `route`, and `narrow` from Home Assistant. Recovery notices stay inside the panel and do not expose tokens, secrets, or filesystem paths.
 
@@ -53,7 +53,7 @@ Version `0.4.0` separates the frontend into three conceptual planes:
 - Developer Workbench: an explicitly enabled admin-only inspector for review, payload, runtime, privacy, and export diagnostics.
 - Dev Actions plane: a reserved capability contract for future dry-run/preview/confirmation-oriented developer actions. No write-capable actions are implemented.
 
-The Workbench enabled flag is persisted in browser-local storage under `ha_context_explorer_probe.developer_workbench.enabled`. This avoids Home Assistant config writes or a broader settings system while making the mode truly survive reloads. No diagnostics history, backend payloads, transcripts, or event logs are persisted.
+The Workbench enabled flag is persisted in browser-local storage under `ha_context_explorer.developer_workbench.enabled`. This avoids Home Assistant config writes or a broader settings system while making the mode truly survive reloads. No diagnostics history, backend payloads, transcripts, or event logs are persisted.
 
 The desktop shell uses a right-side inspector beside the Core Explorer. Narrow screens use a fixed drawer/overlay style so the Core Explorer remains usable.
 
@@ -67,8 +67,8 @@ Implemented scopes are exposed explicitly. Future scopes are reported as unavail
 
 ## Distribution posture
 
-The repository keeps the standard custom integration layout under `custom_components/ha_context_explorer_probe/` and includes root HACS metadata as a custom-repository readiness starter. The runtime integration domain remains `ha_context_explorer_probe` for compatibility, while visible docs and UI use HA Context Explorer.
+The repository keeps the standard custom integration layout under `custom_components/ha_context_explorer/` and includes root HACS metadata as a custom-repository readiness starter. Version `0.5.0` finalizes the runtime integration domain as `ha_context_explorer`; the old `ha_context_explorer_probe` domain is historical and may require manual removal from existing Home Assistant installations.
 
 The intended future update path is HACS custom repository usage backed by GitHub releases with version tags. This is not yet a full release pipeline, default-store submission, or guarantee of complete HACS compliance.
 
-Repository presentation currently uses a provisional logo at `docs/assets/ha-context-explorer-logo.png` and a derived icon at `docs/assets/ha-context-explorer-icon.png`. The README references the logo with an absolute raw GitHub URL because live HACS testing did not render the earlier relative image path. The custom integration also includes provisional local brand assets at `custom_components/ha_context_explorer_probe/brand/icon.png` and `custom_components/ha_context_explorer_probe/brand/logo.png` for Home Assistant 2026.3+ local custom integration brand discovery. In the tested runtime, Home Assistant's integration/repairs UI shows the local integration icon, but HACS custom repository list/card presentation still needs validation and may show "icon not available". These assets are not final branding, not a Home Assistant Brands submission, and not a guarantee that every Home Assistant or HACS runtime will display the icon.
+Repository presentation currently uses a provisional logo at `docs/assets/ha-context-explorer-logo.png` and a derived icon at `docs/assets/ha-context-explorer-icon.png`. The README references the logo with an absolute raw GitHub URL because live HACS testing did not render the earlier relative image path. The custom integration also includes provisional local brand assets at `custom_components/ha_context_explorer/brand/icon.png` and `custom_components/ha_context_explorer/brand/logo.png` for Home Assistant 2026.3+ local custom integration brand discovery. Future HACS list/card icon work should target the central Brands path `https://brands.home-assistant.io/_/ha_context_explorer/icon.png` through an external `home-assistant/brands` PR under `custom_integrations/ha_context_explorer/`. These assets are not final branding, not a Home Assistant Brands submission, and not a guarantee that every Home Assistant or HACS runtime will display the icon.

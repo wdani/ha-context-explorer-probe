@@ -1,5 +1,27 @@
 # AI Change History
 
+## 0.5.0
+
+Breaking early-project domain cleanup before external Home Assistant Brands work.
+
+Key changes:
+
+- Renamed the integration folder from `custom_components/ha_context_explorer_probe/` to `custom_components/ha_context_explorer/`.
+- Changed the manifest domain and constants from `ha_context_explorer_probe` to `ha_context_explorer`.
+- Changed the panel custom element from `ha-context-explorer-probe-panel` to `ha-context-explorer-panel`.
+- Changed API paths, panel/static paths, frontend `hass.callApi` scope base, lifecycle/wrapper recovery selectors, local brand asset paths, and the Developer Workbench browser-local enabled flag to the new domain.
+- Updated manual install, manual migration, HACS checklist, and future Home Assistant Brands checklist for the new domain.
+- Hardened the native panel lifecycle against duplicate current-domain panel instances after live testing found `newPanelCount: 2`.
+- Added lifecycle status reconciliation after follow-up live testing showed a connected single-panel instance could still display a stale detached/waiting status.
+- Bumped the integration version to `0.5.0`.
+
+Important boundaries kept:
+
+- This is not backward-compatible with existing old-domain installs.
+- Existing `ha_context_explorer_probe` config entries may not migrate automatically.
+- No Explorer scopes, payload shapes, parser coverage, service calls, mutation endpoints, `.storage` access, telemetry, or write-capable Dev Actions were added.
+- Historical references to the old probe domain remain only where they describe prior versions or old validation records.
+
 ## Distribution-readiness starter
 
 First small step toward cleaner installation/update distribution.

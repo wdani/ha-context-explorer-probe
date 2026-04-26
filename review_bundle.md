@@ -1,6 +1,205 @@
 # Review Bundle
 
-## Distribution/branding/HACS validation review
+## 0.5.0 domain rename review
+
+Task: breaking early-project cleanup from the old probe-era integration domain to the final HA Context Explorer domain before external Home Assistant Brands work.
+
+Result: the active integration moved from `custom_components/ha_context_explorer_probe/` to `custom_components/ha_context_explorer/`, and the version is now `0.5.0`. This is not claimed to be backward-compatible with existing old-domain installs.
+
+Renamed paths:
+
+- `custom_components/ha_context_explorer_probe/` -> `custom_components/ha_context_explorer/`
+- `custom_components/ha_context_explorer_probe/brand/` -> `custom_components/ha_context_explorer/brand/`
+- `custom_components/ha_context_explorer_probe/www/` -> `custom_components/ha_context_explorer/www/`
+
+Changed identifiers:
+
+- Manifest domain: `ha_context_explorer_probe` -> `ha_context_explorer`
+- API base path: `/api/ha_context_explorer_probe/...` -> `/api/ha_context_explorer/...`
+- Panel path/static path: `ha_context_explorer_probe` and `/local/ha_context_explorer_probe` -> `ha_context_explorer` and `/local/ha_context_explorer`
+- Custom element: `ha-context-explorer-probe-panel` -> `ha-context-explorer-panel`
+- Developer Workbench storage key: `ha_context_explorer_probe.developer_workbench.enabled` -> `ha_context_explorer.developer_workbench.enabled`
+- Future Brands path: `custom_integrations/ha_context_explorer_probe/` -> `custom_integrations/ha_context_explorer/`
+- Future Brands URL: `https://brands.home-assistant.io/_/ha_context_explorer_probe/icon.png` -> `https://brands.home-assistant.io/_/ha_context_explorer/icon.png`
+
+Manual migration notes:
+
+1. Remove the old HA Context Explorer integration entry if one exists.
+2. Remove the old `custom_components/ha_context_explorer_probe` folder from Home Assistant.
+3. Install or copy the new `custom_components/ha_context_explorer` folder.
+4. Restart Home Assistant.
+5. Add HA Context Explorer again from Settings -> Devices & Services.
+6. Clear browser cache if the old sidebar panel path or static assets still appear.
+
+Compatibility and pending work:
+
+- Existing old-domain config entries may not migrate automatically.
+- Live Home Assistant retest is required after installing the new domain.
+- HACS list/card icon remains pending until an external `home-assistant/brands` PR adds `custom_integrations/ha_context_explorer/` assets.
+- Historical `ha_context_explorer_probe` and `ha-context-explorer-probe-panel` references remain in lower review/changelog sections only where they describe prior versions, old validation commands, or the reason for the rename.
+
+Live 0.5.0 lifecycle/interactivity finding:
+
+- Live testing confirmed the new domain was active: route `/ha_context_explorer`, payload domain `ha_context_explorer`, version `0.5.0`, and API endpoints under `/api/ha_context_explorer/...`.
+- The old custom element was not defined in the tested runtime: `oldPanelDefined: false`, `oldPanelCount: 0`.
+- A deep active-DOM query during the visible-but-noninteractive state found `newPanelDefined: true`, `newPanelCount: 2`, and `oldPanelCount: 0`.
+- Workbench lifecycle diagnostics also showed repeated `Host mismatch detected; rebound the active panel instance.` events.
+- Likely root cause: duplicate current-domain panel instances could leave the visible instance, `appState.host`, `appState.root`, and event handlers out of sync after Home Assistant navigation/rebind/recovery.
+
+Lifecycle/interactivity hardening added:
+
+- Wrapper recovery now normalizes current-domain `ha-context-explorer-panel` instances for the active `ha-panel-custom` wrapper.
+- If multiple current-domain panel instances are detected, the active wrapper instance is kept/adopted and stale duplicates are removed.
+- `appState.host` and `appState.root` are rebound to the adopted active instance.
+- If the active host/root changes, the shell is rebuilt and interaction handlers are rebound instead of trusting possibly stale handlers.
+- Runtime diagnostics now include `duplicate_panel_instances_detected`, `stale_panel_instance_removed`, `active_panel_instance_adopted`, and `interaction_handlers_rebound`.
+- Repeated lifecycle/duplicate diagnostic events are aggregated in the Workbench runtime log to avoid noisy loops.
+
+Follow-up live 0.5.0 status finding:
+
+- Live retesting after the duplicate-instance hardening showed the current-domain duplicate problem improved: route `/ha_context_explorer`, `panelCount: 1`, `oldPanelCount: 0`, `connected: true`, `hasShadowRoot: true`, and `buttons: 18`.
+- The old custom element remained absent: `ha-context-explorer-probe-panel` count was `0`.
+- A new stale-status issue remained: the visible, connected panel could still show `Waiting / Panel is detached; waiting for Home Assistant to remount it`.
+- Likely root cause: the detached/waiting status was set during a real navigation transition, but cached-data rendering after reconnection did not overwrite it because `renderScope()` does not normally set the top connection status.
+
+Lifecycle status reconciliation added:
+
+- The frontend now tracks whether the detached/waiting status was actually stored by lifecycle recovery.
+- When the active panel is connected, its current shadow root is active, and required shell targets exist, stale detached/waiting status is cleared.
+- Runtime diagnostics now include `active_panel_confirmed_connected`, `lifecycle_detached_state_cleared`, and `lifecycle_status_reconciled`.
+- Real detached states remain detectable: the Waiting status is still set only when the active host is genuinely missing or disconnected.
+- Reconciliation is gated on the current active host/root/shell-ready check and uses aggregated Workbench events to avoid noisy loops.
+
+Manual live retest checklist:
+
+1. Open HA Context Explorer.
+2. Confirm the top status settles to `Connected`.
+3. Run `deepQuerySelectorAll("ha-context-explorer-panel").length`.
+4. Confirm it is `1`.
+5. Click several tabs.
+6. Navigate away to a Home Assistant Updates/config page.
+7. Return to HA Context Explorer.
+8. Confirm the panel count remains `1`.
+9. Confirm the top status is not stuck on `Waiting`.
+10. Click tabs again.
+11. Repeat the navigation cycle several times.
+12. Test Developer Workbench toggle and panes.
+13. Confirm no old `/ha_context_explorer_probe` paths appear.
+
+### 0.5.0 validation results
+
+Branch check:
+
+```powershell
+git status --short --branch
+```
+
+Result:
+
+```text
+## rename-domain-ha-context-explorer...origin/rename-domain-ha-context-explorer
+```
+
+Backend syntax:
+
+```powershell
+python -c "import ast, pathlib; files=sorted(pathlib.Path('custom_components/ha_context_explorer').rglob('*.py')); [ast.parse(path.read_text(encoding='utf-8'), filename=str(path)) for path in files]; print('AST syntax OK for', len(files), 'backend files')"
+```
+
+Result:
+
+```text
+AST syntax OK for backend files.
+```
+
+Manifest JSON and version alignment:
+
+```powershell
+python -m json.tool custom_components\ha_context_explorer\manifest.json
+Select-String -Path custom_components\ha_context_explorer\const.py,custom_components\ha_context_explorer\manifest.json -Pattern '0\.5\.0'
+```
+
+Result:
+
+```text
+manifest.json parses; const.py and manifest.json both report 0.5.0.
+```
+
+Frontend syntax:
+
+```powershell
+& "<bundled Node.js>" --check custom_components\ha_context_explorer\www\app.js
+& "<bundled Node.js>" --check custom_components\ha_context_explorer\www\workbench.js
+```
+
+Result:
+
+```text
+No syntax errors reported. The default `node` command was access-denied in this sandbox, so the bundled Codex Node.js runtime was used for the syntax check.
+```
+
+Duplicate lifecycle hardening scan:
+
+```powershell
+Select-String -Path custom_components\ha_context_explorer\www\app.js -Pattern 'normalizeExplorerPanelInstances|duplicate_panel_instances_detected|stale_panel_instance_removed|active_panel_instance_adopted|interaction_handlers_rebound'
+```
+
+Result:
+
+```text
+Expected duplicate-instance normalization and runtime diagnostic hooks are present.
+```
+
+Lifecycle status reconciliation scan:
+
+```powershell
+Get-ChildItem -Path custom_components\ha_context_explorer -Recurse -File | Select-String -Pattern 'lifecycle_detached_state_cleared|active_panel_confirmed_connected|lifecycle_status_reconciled|DETACHED_STATUS_DETAIL|CONNECTED_STATUS_DETAIL'
+```
+
+Result:
+
+```text
+Expected stale detached/waiting status constants and runtime diagnostic hooks are present in the active frontend.
+```
+
+Brand assets:
+
+```powershell
+Test-Path custom_components\ha_context_explorer\brand\icon.png
+Test-Path custom_components\ha_context_explorer\brand\logo.png
+```
+
+Result:
+
+```text
+Both local brand assets exist under the new integration folder.
+```
+
+Current-domain scan:
+
+```powershell
+Get-ChildItem -Path custom_components\ha_context_explorer -Recurse -File | Select-String -Pattern 'ha_context_explorer_probe|ha-context-explorer-probe|/local/ha_context_explorer_probe|/api/ha_context_explorer_probe'
+```
+
+Result:
+
+```text
+No current integration file matches.
+```
+
+Safety scan:
+
+```powershell
+Get-ChildItem -Path custom_components\ha_context_explorer -Recurse -File | Select-String -Pattern 'def (post|put|patch|delete)|async def (post|put|patch|delete)|services\.async_call|async_register|register_service|\.storage|secrets\.yaml|Authorization|Bearer|telemetry|Sentry|sentry|fetch\('
+```
+
+Result:
+
+```text
+Only expected static path/panel registration calls and the existing Developer Workbench sanitizer regex matched. No mutation handlers, service calls, .storage access, secrets.yaml access, token scraping, Authorization/Bearer usage, telemetry, fetch-based uploads, or write-capable Dev Actions were found.
+```
+
+## Historical distribution/branding/HACS validation review
 
 Task: combined HACS custom repository, provisional branding, local integration brand asset, and release/update documentation readiness pass after the merged 0.4.1 Developer Workbench foundation.
 

@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+No unreleased changes.
+
+## 0.5.0
+
+- Renamed the internal Home Assistant integration domain from `ha_context_explorer_probe` to `ha_context_explorer`.
+- Renamed the integration folder from `custom_components/ha_context_explorer_probe` to `custom_components/ha_context_explorer`.
+- Updated manifest domain, constants, panel path, static asset path, API base path, custom element name, lifecycle/wrapper recovery selectors, and Developer Workbench storage key to the final domain.
+- Updated real data endpoints to `/api/ha_context_explorer/...`.
+- Updated local brand assets to `custom_components/ha_context_explorer/brand/`.
+- Added manual migration notes for removing the old probe-domain integration/folder and reinstalling the new domain.
+- Updated the future Home Assistant Brands checklist to use `custom_integrations/ha_context_explorer/` and `https://brands.home-assistant.io/_/ha_context_explorer/icon.png`.
+- Hardened native panel lifecycle recovery against duplicate current-domain `ha-context-explorer-panel` instances after Home Assistant navigation/rebind flows.
+- Added duplicate-instance runtime diagnostics and rebinding protection so stale panel instances are removed and interaction handlers are rebuilt on active host/root adoption.
+- Reconciled stale detached/waiting lifecycle status after live retesting showed a connected single-panel instance could still display `Waiting / Panel is detached`.
+- Added connected-panel status diagnostics for lifecycle reconciliation while keeping genuine detached states visible.
+- Kept read-only behavior, GET-only endpoints, admin-only access, implemented scopes, and payload shapes unchanged.
+- Bumped the integration version to `0.5.0` because this is a breaking domain/path cleanup before external Brands work.
+
+## 0.4.1 Distribution Readiness
+
 - Added minimal HACS custom repository starter metadata with root `hacs.json`.
 - Updated integration documentation and issue tracker metadata to point at `wdani/ha-context-explorer`.
 - Clarified README installation and update paths for manual installs, HACS custom repository testing, and future release-based updates.
@@ -11,7 +31,7 @@
 - Recorded live HACS custom repository observations, including successful custom repository acceptance/download availability, working Home Assistant integration UI icon display, pending HACS list/card icon validation, and an observed `styles.css` MIME warning.
 - Added manual release/tag workflow guidance and a HACS custom repository test checklist.
 - Refined HACS custom repository validation guidance to distinguish README/logo presentation, local integration brand assets, Home Assistant Brands, default-store submission, and future release/tag update testing.
-- Kept integration version at `0.4.1` because no Explorer runtime behavior changed.
+- Kept integration version at `0.4.1` at the time because no Explorer runtime behavior changed.
 
 ## 0.4.1
 

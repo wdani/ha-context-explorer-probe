@@ -18,11 +18,11 @@ This is **not** a continuation of `ha-ai-context-exporter`. It is a clean explor
 
 ## Current version
 
-`0.4.1`
+`0.5.0`
 
 ## Implemented scopes
 
-The current `0.4.1` branch includes the first real read-only explorer slice, the first logic/reference starter slice, native-panel lifecycle/wrapper recovery hardening, the first Developer Workbench foundation, and a small live-test polish pass for Workbench copy/runtime-log usability:
+The current `0.5.0` branch includes the first real read-only explorer slice, the first logic/reference starter slice, native-panel lifecycle/wrapper recovery hardening, the first Developer Workbench foundation, a small live-test polish pass for Workbench copy/runtime-log usability, and the breaking internal domain rename from the old probe-era integration domain to `ha_context_explorer`.
 
 - Overview
 - Entities
@@ -64,14 +64,14 @@ The Workbench also includes a placeholder Dev Actions plane for future guarded d
 
 All real data endpoints are `GET` only and require authenticated Home Assistant admin access:
 
-- `/api/ha_context_explorer_probe/overview`
-- `/api/ha_context_explorer_probe/entities`
-- `/api/ha_context_explorer_probe/devices`
-- `/api/ha_context_explorer_probe/areas`
-- `/api/ha_context_explorer_probe/integrations`
-- `/api/ha_context_explorer_probe/relationships`
-- `/api/ha_context_explorer_probe/logic`
-- `/api/ha_context_explorer_probe/workbench`
+- `/api/ha_context_explorer/overview`
+- `/api/ha_context_explorer/entities`
+- `/api/ha_context_explorer/devices`
+- `/api/ha_context_explorer/areas`
+- `/api/ha_context_explorer/integrations`
+- `/api/ha_context_explorer/relationships`
+- `/api/ha_context_explorer/logic`
+- `/api/ha_context_explorer/workbench`
 
 The sidebar now uses Home Assistant's native custom panel model instead of an iframe shell. The frontend is a JavaScript module custom element loaded by Home Assistant, receives the frontend `hass` object, and requests protected JSON through `hass.callApi`. Real JSON data remains protected separately by Home Assistant auth and an explicit admin check. If the frontend auth context still cannot reach the protected endpoints in a runtime, the UI shows one clear 401/403 state instead of weakening endpoint auth or repeatedly probing protected endpoints.
 
@@ -81,7 +81,7 @@ Version `0.2.3` refines the current views to prefer user-facing labels over raw 
 
 Version `0.3.0` adds the first logic/reference starter slice. The Logic tab shows source coverage directly, including parsed canonical files, missing canonical files, intentionally unsupported source types, parse failures, and partial parsing. This is a starter reference extractor, not a full Home Assistant logic graph or complete template dependency engine.
 
-Version `0.3.1` started hardening the native custom panel frontend against Home Assistant internal navigation, reconnect, and remount cases that could otherwise leave a blank panel until a full browser reload. Version `0.3.2` deepened that recovery path by actively adopting the current panel host from Home Assistant `hass` updates, rebuilding a missing shell when integrity checks fail, adding visibility/page-restore recovery hooks, and showing compact in-panel lifecycle diagnostics if recovery cannot complete. Version `0.3.3` adds a focused recovery path for the live-observed case where Home Assistant leaves the custom panel wrapper mounted but empty, with no HA Context Explorer child element. Version `0.4.0` adds the Developer Workbench foundation without changing endpoint auth, data shaping, source readers, or read-only behavior.
+Version `0.3.1` started hardening the native custom panel frontend against Home Assistant internal navigation, reconnect, and remount cases that could otherwise leave a blank panel until a full browser reload. Version `0.3.2` deepened that recovery path by actively adopting the current panel host from Home Assistant `hass` updates, rebuilding a missing shell when integrity checks fail, adding visibility/page-restore recovery hooks, and showing compact in-panel lifecycle diagnostics if recovery cannot complete. Version `0.3.3` adds a focused recovery path for the live-observed case where Home Assistant leaves the custom panel wrapper mounted but empty, with no HA Context Explorer child element. Version `0.4.0` adds the Developer Workbench foundation without changing endpoint auth, data shaping, source readers, or read-only behavior. Version `0.5.0` renames the internal integration domain, folder, API path, panel path, static asset path, custom element, and Workbench storage key from the probe-era names to the final `ha_context_explorer` domain.
 
 ## Safety boundaries
 
@@ -105,7 +105,7 @@ This masking is best-effort. It is not guaranteed anonymization, and users shoul
 
 ## Future scopes
 
-Future phases may explore floors, labels, dashboards, services, and deeper logic relationships. Floors, labels, dashboards, service exploration, graph visualization, execution tracing, and full template dependency coverage are not implemented in `0.4.1`.
+Future phases may explore floors, labels, dashboards, services, and deeper logic relationships. Floors, labels, dashboards, service exploration, graph visualization, execution tracing, and full template dependency coverage are not implemented in `0.5.0`.
 
 The current logic slice is intentionally partial. Future work may broaden coverage to packages, include-based layouts, dashboards, labels, floors, services, richer template analysis, graph visualization, and deeper execution/context modeling.
 
@@ -128,9 +128,9 @@ The logo at `docs/assets/ha-context-explorer-logo.png` is provisional placeholde
 
 The README logo uses an absolute raw GitHub URL because live HACS testing showed that HACS rendered the README text but did not resolve the previous relative image path.
 
-The integration includes provisional local brand images at `custom_components/ha_context_explorer_probe/brand/icon.png` and `custom_components/ha_context_explorer_probe/brand/logo.png`. Home Assistant 2026.3 and newer can use local custom integration brand images from this `brand/` directory. In the tested Home Assistant runtime, the integration icon appears in Home Assistant's integration/repairs UI. HACS custom repository list/card presentation may still show "icon not available"; no HACS-specific repository metadata key for a custom list icon has been applied in this step.
+The integration includes provisional local brand images at `custom_components/ha_context_explorer/brand/icon.png` and `custom_components/ha_context_explorer/brand/logo.png`. Home Assistant 2026.3 and newer can use local custom integration brand images from this `brand/` directory. In the tested Home Assistant runtime, the integration icon appeared in Home Assistant's integration/repairs UI before the domain rename; retest is required for the new `ha_context_explorer` domain.
 
-The integration still uses the internal compatibility domain and folder name `ha_context_explorer_probe`. That is expected for now; the user-facing name is **HA Context Explorer**.
+The integration now uses the final internal domain and folder name `ha_context_explorer`. The old `ha_context_explorer_probe` domain remains historical only.
 
 ## Local reference material
 
@@ -142,10 +142,21 @@ Do not copy reference data into repository source files or docs.
 
 ### Manual install
 
-1. Copy `custom_components/ha_context_explorer_probe` into your Home Assistant `custom_components` directory.
+1. Copy `custom_components/ha_context_explorer` into your Home Assistant `custom_components` directory.
 2. Restart Home Assistant.
 3. Add the integration from **Settings -> Devices & Services**.
 4. Open **HA Context Explorer** from the sidebar.
+
+### Manual migration from the old probe domain
+
+Version `0.5.0` is an early-project breaking domain cleanup. Existing old-domain config entries may not migrate automatically.
+
+1. Remove the old HA Context Explorer integration entry if one exists.
+2. Remove the old `custom_components/ha_context_explorer_probe` folder from Home Assistant.
+3. Install or copy the new `custom_components/ha_context_explorer` folder.
+4. Restart Home Assistant.
+5. Add **HA Context Explorer** again from **Settings -> Devices & Services**.
+6. Clear browser cache if the old sidebar panel path or static assets still appear.
 
 ### HACS custom repository install
 
@@ -171,7 +182,7 @@ Use this as a manual validation checklist before presenting HACS as a comfortabl
 - Confirm HACS accepts the repository metadata. Current live result: accepted.
 - Confirm HACS shows the repository as available for download. Current live result: available.
 - Confirm HACS displays the README content and provisional project logo as expected. Current live result: README text renders; the relative README logo was broken before switching to the raw GitHub URL.
-- Check whether the HACS list/card icon appears. Current live result: still showed "icon not available"; this remains pending HACS presentation validation.
+- Check whether the HACS list/card icon appears. Current live result before the `0.5.0` domain rename: HACS requested the old central Brands URL and still showed "icon not available"; this remains pending validation for the new domain.
 - Install or update the integration through HACS.
 - Restart Home Assistant if HACS or Home Assistant asks for it.
 - Confirm **HA Context Explorer** appears in **Settings -> Devices & Services**.
@@ -181,17 +192,29 @@ Use this as a manual validation checklist before presenting HACS as a comfortabl
 - Confirm Overview and at least one additional protected scope load for an admin user.
 - Confirm Developer Workbench remains admin-only and local-only.
 - Check Home Assistant logs for import, frontend asset, auth, or panel registration errors.
-- Check the browser console for frontend asset warnings. Current live result: a `styles.css` MIME-type warning was observed for `/local/ha_context_explorer_probe/styles.css?...`; no HA Context Explorer panel runtime error was reported.
+- Check the browser console for frontend asset warnings. Current live result before the `0.5.0` domain rename: a `styles.css` MIME-type warning was observed for the old `/local/ha_context_explorer_probe/styles.css?...` path; no HA Context Explorer panel runtime error was reported. Retest the new `/local/ha_context_explorer/styles.css?...` path after migration.
 - Check whether HACS reports update information as expected for the current branch or future release.
 - After a future GitHub Release exists, confirm HACS detects update availability from the release/tag path.
 
 This checklist is for custom repository testing only. It is not a HACS default-store submission checklist.
 
+### Future Home Assistant Brands PR checklist
+
+This is an external follow-up for the central `home-assistant/brands` repository, not a change that can be completed only inside this repository.
+
+- Use the final custom integration domain folder: `custom_integrations/ha_context_explorer/`.
+- Add `icon.png` as a square `256x256` PNG derived from the project icon.
+- Optionally add `icon@2x.png` as a square `512x512` PNG.
+- Add `logo.png` only if a true logo variant exists and meets Home Assistant Brands requirements; otherwise rely on icon fallback.
+- Ensure images are PNG, trimmed, optimized, and not based on Home Assistant branded images.
+- After merge and cache expiry, confirm `https://brands.home-assistant.io/_/ha_context_explorer/icon.png` returns the custom icon.
+- Remember browser cache may last up to 7 days and CDN cache may last up to 24 hours.
+
 ## Updates
 
 ### Manual update
 
-1. Replace the local `custom_components/ha_context_explorer_probe` directory with the newer repository copy.
+1. Replace the local `custom_components/ha_context_explorer` directory with the newer repository copy.
 2. Restart Home Assistant.
 3. Refresh the browser if the panel frontend still shows an older version.
 
@@ -205,7 +228,7 @@ Future release checklist:
 - Bump the integration version only when the change justifies a user-visible release.
 - Update `CHANGELOG.md`.
 - Update `review_bundle.md` with validation results.
-- Confirm `custom_components/ha_context_explorer_probe/manifest.json` and `const.py` agree on the version.
+- Confirm `custom_components/ha_context_explorer/manifest.json` and `const.py` agree on the version.
 - Run syntax, manifest, safety, and reference-data checks.
 - Create a Git tag matching the release version.
 - Create a GitHub Release from that tag with concise release notes.

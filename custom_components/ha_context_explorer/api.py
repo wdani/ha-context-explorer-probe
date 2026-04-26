@@ -67,7 +67,7 @@ READ_ONLY_FLAGS = {
 
 
 @dataclass(frozen=True)
-class ProbeSnapshot:
+class ExplorerSnapshot:
     """In-memory Home Assistant data used to shape one response."""
 
     states: list[Any]
@@ -81,7 +81,7 @@ class ProbeSnapshot:
     warnings: list[str]
 
 
-class ProbeDataView(HomeAssistantView):
+class ExplorerDataView(HomeAssistantView):
     """Authenticated admin-only GET endpoint for one explorer scope."""
 
     requires_auth = True
@@ -118,7 +118,7 @@ def register_api_views(hass: HomeAssistant) -> None:
         ("workbench", lambda hass: build_workbench_payload()),
     )
     for scope, builder in views:
-        hass.http.register_view(ProbeDataView(scope, builder))
+        hass.http.register_view(ExplorerDataView(scope, builder))
 
 
 async def build_overview_payload(hass: HomeAssistant) -> dict[str, Any]:
@@ -256,7 +256,7 @@ def _require_admin(request: web.Request) -> None:
         raise Unauthorized()
 
 
-def _snapshot(hass: HomeAssistant) -> ProbeSnapshot:
+def _snapshot(hass: HomeAssistant) -> ExplorerSnapshot:
     """Read Home Assistant in-memory state and registries."""
     warnings: list[str] = []
 
@@ -286,7 +286,7 @@ def _snapshot(hass: HomeAssistant) -> ProbeSnapshot:
     device_entries = _registry_items(device_registry, "devices")
     area_entries = _registry_items(area_registry, "areas")
 
-    return ProbeSnapshot(
+    return ExplorerSnapshot(
         states=states,
         states_by_entity_id={state.entity_id: state for state in states},
         entity_entries_by_id={
@@ -315,7 +315,7 @@ def _snapshot(hass: HomeAssistant) -> ProbeSnapshot:
     )
 
 
-def _build_entity_items(snapshot: ProbeSnapshot) -> list[dict[str, Any]]:
+def _build_entity_items(snapshot: ExplorerSnapshot) -> list[dict[str, Any]]:
     """Shape state machine entities with registry hints."""
     items: list[dict[str, Any]] = []
 
@@ -352,7 +352,7 @@ def _build_entity_items(snapshot: ProbeSnapshot) -> list[dict[str, Any]]:
     return items
 
 
-def _build_device_items(snapshot: ProbeSnapshot) -> list[dict[str, Any]]:
+def _build_device_items(snapshot: ExplorerSnapshot) -> list[dict[str, Any]]:
     """Shape device registry entries."""
     entity_counts = _device_entity_counts(snapshot)
     items: list[dict[str, Any]] = []
@@ -377,7 +377,7 @@ def _build_device_items(snapshot: ProbeSnapshot) -> list[dict[str, Any]]:
     return items
 
 
-def _build_area_items(snapshot: ProbeSnapshot) -> list[dict[str, Any]]:
+def _build_area_items(snapshot: ExplorerSnapshot) -> list[dict[str, Any]]:
     """Shape area registry entries with resolved counts."""
     device_counts = _area_device_counts(snapshot)
     entity_counts = _area_entity_counts(snapshot)
@@ -397,7 +397,7 @@ def _build_area_items(snapshot: ProbeSnapshot) -> list[dict[str, Any]]:
     return items
 
 
-def _build_integration_items(snapshot: ProbeSnapshot) -> list[dict[str, Any]]:
+def _build_integration_items(snapshot: ExplorerSnapshot) -> list[dict[str, Any]]:
     """Shape config-entry and component-oriented integration data."""
     domains = set(snapshot.components)
     domains.update(_entry_attr(entry, "domain") for entry in snapshot.config_entries if _entry_attr(entry, "domain"))
@@ -440,7 +440,7 @@ def _build_integration_items(snapshot: ProbeSnapshot) -> list[dict[str, Any]]:
     return items
 
 
-def _build_relationships(snapshot: ProbeSnapshot) -> dict[str, Any]:
+def _build_relationships(snapshot: ExplorerSnapshot) -> dict[str, Any]:
     """Build structured relationship links."""
     entity_to_device = []
     entity_to_area = []
@@ -580,7 +580,7 @@ def _display_candidate(value: Any | None, key: str, raw_values: tuple[Any, ...] 
     return masked.strip()
 
 
-def _entity_display_name(snapshot: ProbeSnapshot, entity_id: str) -> str:
+def _entity_display_name(snapshot: ExplorerSnapshot, entity_id: str) -> str:
     """Return the best user-facing entity label with an honest raw fallback."""
     state = snapshot.states_by_entity_id.get(entity_id)
     entry = snapshot.entity_entries_by_id.get(entity_id)
@@ -597,7 +597,7 @@ def _entity_display_name(snapshot: ProbeSnapshot, entity_id: str) -> str:
     return f"Entity: {_compact_identifier(entity_id)}"
 
 
-def _device_label(snapshot: ProbeSnapshot, device_id: str | None) -> str | None:
+def _device_label(snapshot: ExplorerSnapshot, device_id: str | None) -> str | None:
     """Return the best user-facing device label."""
     if not device_id:
         return None
@@ -613,7 +613,7 @@ def _device_label(snapshot: ProbeSnapshot, device_id: str | None) -> str | None:
     return _technical_fallback("Device", device_id)
 
 
-def _area_label(snapshot: ProbeSnapshot, area_id: str | None) -> str | None:
+def _area_label(snapshot: ExplorerSnapshot, area_id: str | None) -> str | None:
     """Return the best user-facing area label."""
     if not area_id:
         return None
@@ -624,7 +624,7 @@ def _area_label(snapshot: ProbeSnapshot, area_id: str | None) -> str | None:
     return _technical_fallback("Area", area_id)
 
 
-def _integration_label(snapshot: ProbeSnapshot, domain: str | None) -> str | None:
+def _integration_label(snapshot: ExplorerSnapshot, domain: str | None) -> str | None:
     """Return the best user-facing integration label."""
     if not domain:
         return None
@@ -722,14 +722,14 @@ def _device_name(device: Any) -> str | None:
     return _entry_attr(device, "name_by_user") or _entry_attr(device, "name")
 
 
-def _config_entry_domain(snapshot: ProbeSnapshot, entry_id: str | None) -> str | None:
+def _config_entry_domain(snapshot: ExplorerSnapshot, entry_id: str | None) -> str | None:
     """Resolve a config entry domain."""
     if not entry_id:
         return None
     return _entry_attr(snapshot.config_entries_by_id.get(entry_id), "domain")
 
 
-def _entity_integration(snapshot: ProbeSnapshot, entity_id: str, entry: Any | None) -> str | None:
+def _entity_integration(snapshot: ExplorerSnapshot, entity_id: str, entry: Any | None) -> str | None:
     """Resolve the best integration hint for an entity."""
     return (
         _config_entry_domain(snapshot, _entry_attr(entry, "config_entry_id"))
@@ -738,7 +738,7 @@ def _entity_integration(snapshot: ProbeSnapshot, entity_id: str, entry: Any | No
     )
 
 
-def _device_integrations(snapshot: ProbeSnapshot, device: Any) -> list[str]:
+def _device_integrations(snapshot: ExplorerSnapshot, device: Any) -> list[str]:
     """Resolve integration domains linked to a device."""
     config_entry_ids = _entry_attr(device, "config_entries") or []
     domains = {
@@ -752,7 +752,7 @@ def _device_integrations(snapshot: ProbeSnapshot, device: Any) -> list[str]:
     return sorted(domains)
 
 
-def _resolve_area_id(snapshot: ProbeSnapshot, entity_entry: Any | None) -> str | None:
+def _resolve_area_id(snapshot: ExplorerSnapshot, entity_entry: Any | None) -> str | None:
     """Resolve entity area directly or via linked device."""
     direct_area_id = _entry_attr(entity_entry, "area_id")
     if direct_area_id:
@@ -764,7 +764,7 @@ def _resolve_area_id(snapshot: ProbeSnapshot, entity_entry: Any | None) -> str |
     return _entry_attr(snapshot.device_entries_by_id.get(device_id), "area_id")
 
 
-def _device_entity_counts(snapshot: ProbeSnapshot) -> dict[str, int]:
+def _device_entity_counts(snapshot: ExplorerSnapshot) -> dict[str, int]:
     """Count registry entities per device."""
     counts: dict[str, int] = {}
     for entry in snapshot.entity_entries_by_id.values():
@@ -773,7 +773,7 @@ def _device_entity_counts(snapshot: ProbeSnapshot) -> dict[str, int]:
     return counts
 
 
-def _area_device_counts(snapshot: ProbeSnapshot) -> dict[str, int]:
+def _area_device_counts(snapshot: ExplorerSnapshot) -> dict[str, int]:
     """Count devices per area."""
     counts: dict[str, int] = {}
     for device in snapshot.device_entries_by_id.values():
@@ -782,7 +782,7 @@ def _area_device_counts(snapshot: ProbeSnapshot) -> dict[str, int]:
     return counts
 
 
-def _area_entity_counts(snapshot: ProbeSnapshot) -> dict[str, int]:
+def _area_entity_counts(snapshot: ExplorerSnapshot) -> dict[str, int]:
     """Count entities per resolved area."""
     counts: dict[str, int] = {}
     for entry in snapshot.entity_entries_by_id.values():
@@ -791,7 +791,7 @@ def _area_entity_counts(snapshot: ProbeSnapshot) -> dict[str, int]:
     return counts
 
 
-def _integration_entity_counts(snapshot: ProbeSnapshot) -> dict[str, int]:
+def _integration_entity_counts(snapshot: ExplorerSnapshot) -> dict[str, int]:
     """Count entities per integration hint."""
     counts: dict[str, int] = {}
     for entity_id, entry in snapshot.entity_entries_by_id.items():
@@ -800,7 +800,7 @@ def _integration_entity_counts(snapshot: ProbeSnapshot) -> dict[str, int]:
     return counts
 
 
-def _integration_device_counts(snapshot: ProbeSnapshot) -> dict[str, int]:
+def _integration_device_counts(snapshot: ExplorerSnapshot) -> dict[str, int]:
     """Count devices per integration domain."""
     counts: dict[str, int] = {}
     for device in snapshot.device_entries_by_id.values():
