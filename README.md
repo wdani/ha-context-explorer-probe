@@ -128,7 +128,9 @@ The logo at `docs/assets/ha-context-explorer-logo.png` is provisional placeholde
 
 The README logo uses an absolute raw GitHub URL because live HACS testing showed that HACS rendered the README text but did not resolve the previous relative image path.
 
-The integration includes provisional local brand images at `custom_components/ha_context_explorer_probe/brand/icon.png` and `custom_components/ha_context_explorer_probe/brand/logo.png`. Home Assistant 2026.3 and newer can use local custom integration brand images from this `brand/` directory. In the tested Home Assistant runtime, the integration icon appears in Home Assistant's integration/repairs UI. HACS custom repository list/card presentation may still show "icon not available"; no HACS-specific repository metadata key for a custom list icon has been applied in this step.
+The integration includes provisional local brand images at `custom_components/ha_context_explorer_probe/brand/icon.png` and `custom_components/ha_context_explorer_probe/brand/logo.png`. Home Assistant 2026.3 and newer can use local custom integration brand images from this `brand/` directory. In the tested Home Assistant runtime, the integration icon appears in Home Assistant's integration/repairs UI.
+
+The HACS custom repository list/card icon is separate from the README image and was not fixed by the local `brand/` assets alone. Live testing showed Home Assistant/HACS requesting `https://brands.home-assistant.io/_/ha_context_explorer_probe/icon.png`, which currently returns the Home Assistant Brands placeholder. The likely fix is a separate PR to the central `home-assistant/brands` repository under `custom_integrations/ha_context_explorer_probe/`. That external PR is not part of this repository task.
 
 The integration still uses the internal compatibility domain and folder name `ha_context_explorer_probe`. That is expected for now; the user-facing name is **HA Context Explorer**.
 
@@ -186,6 +188,18 @@ Use this as a manual validation checklist before presenting HACS as a comfortabl
 - After a future GitHub Release exists, confirm HACS detects update availability from the release/tag path.
 
 This checklist is for custom repository testing only. It is not a HACS default-store submission checklist.
+
+### Future Home Assistant Brands PR checklist
+
+This is an external follow-up for the central `home-assistant/brands` repository, not a change that can be completed only inside this repository.
+
+- Use the custom integration domain folder: `custom_integrations/ha_context_explorer_probe/`.
+- Add `icon.png` as a square `256x256` PNG derived from the project icon.
+- Optionally add `icon@2x.png` as a square `512x512` PNG.
+- Add `logo.png` only if a true logo variant exists and meets Home Assistant Brands requirements; otherwise rely on icon fallback.
+- Ensure images are PNG, trimmed, optimized, and not based on Home Assistant branded images.
+- After merge and cache expiry, confirm `https://brands.home-assistant.io/_/ha_context_explorer_probe/icon.png` returns the custom icon.
+- Remember browser cache may last up to 7 days and CDN cache may last up to 24 hours.
 
 ## Updates
 

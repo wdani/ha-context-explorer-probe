@@ -12,7 +12,9 @@ Live HACS custom repository observations:
 - HACS shows the repository as available for download.
 - HACS renders the README text.
 - The previous relative README logo path rendered as broken image alt text only; README now uses an absolute raw GitHub URL for the logo.
-- HACS list/card presentation still showed "icon not available"; this remains pending HACS presentation validation.
+- HACS list/card presentation still showed "icon not available".
+- Cause confirmed: HACS/Home Assistant requests `https://brands.home-assistant.io/_/ha_context_explorer_probe/icon.png`, which currently returns the central Home Assistant Brands placeholder.
+- Likely external fix: open a separate PR to `home-assistant/brands` adding `custom_integrations/ha_context_explorer_probe/icon.png` and, optionally, `icon@2x.png` and `logo.png`.
 - Home Assistant's own integration/repairs UI shows the local integration icon in the tested runtime.
 - A browser console warning was observed for `/local/ha_context_explorer_probe/styles.css?...` with MIME type `application/octet-stream`; no Home Assistant runtime error was reported for the HA Context Explorer panel itself.
 
@@ -54,7 +56,8 @@ HACS readiness status:
   - HACS docs require/expect a known repository structure and root `hacs.json`.
   - Current HACS integration docs also describe brand assets as required; this task adds local brand assets, but does not validate HACS or Home Assistant UI rendering in every target runtime.
   - Home Assistant 2026.3 and newer can use local custom integration brand assets from the integration `brand/` directory; older behavior may still depend on Home Assistant Brands or HACS-specific presentation.
-  - No clearly documented HACS-specific `hacs.json` key for a custom list/card icon was found; the HACS list/card "icon not available" state remains pending live validation or future Home Assistant Brands/default-store work.
+  - The HACS list/card "icon not available" state is caused by the missing central Brands path `https://brands.home-assistant.io/_/ha_context_explorer_probe/icon.png`.
+  - Fixing that HACS list/card icon requires a separate external `home-assistant/brands` PR for `custom_integrations/ha_context_explorer_probe/`; this repository task only documents the next action.
   - GitHub releases are preferred but not required; this task did not create a release or tag.
   - Default-store submission has additional requirements and is explicitly out of scope.
 
@@ -112,6 +115,18 @@ Result:
 
 ```text
 README logo now uses an absolute raw GitHub URL instead of the previous relative image path.
+```
+
+Future Home Assistant Brands PR checklist documented:
+
+```text
+- Use custom_integrations/ha_context_explorer_probe/
+- Add icon.png as a square 256x256 PNG derived from the project icon.
+- Optionally add icon@2x.png as a square 512x512 PNG.
+- Add logo.png only if a true logo variant exists and meets Home Assistant Brands requirements.
+- Ensure images are PNG, trimmed, optimized, and not based on Home Assistant branded images.
+- After merge and cache expiry, confirm https://brands.home-assistant.io/_/ha_context_explorer_probe/icon.png.
+- Remember browser cache may last up to 7 days and CDN cache may last up to 24 hours.
 ```
 
 Logo and brand assets:

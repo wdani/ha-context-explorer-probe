@@ -9,6 +9,7 @@
 - Added derived provisional icon/logo assets for repo-local documentation and Home Assistant 2026.3+ local custom integration brand discovery.
 - Switched the README logo image to an absolute raw GitHub URL after live HACS testing showed the previous relative image path was not rendered by HACS.
 - Recorded live HACS custom repository observations, including successful custom repository acceptance/download availability, working Home Assistant integration UI icon display, pending HACS list/card icon validation, and an observed `styles.css` MIME warning.
+- Documented the confirmed HACS list/card icon cause: HACS/Home Assistant requests `brands.home-assistant.io/_/ha_context_explorer_probe/icon.png`, which currently returns the Home Assistant Brands placeholder until an external `home-assistant/brands` PR adds custom integration assets.
 - Added manual release/tag workflow guidance and a HACS custom repository test checklist.
 - Refined HACS custom repository validation guidance to distinguish README/logo presentation, local integration brand assets, Home Assistant Brands, default-store submission, and future release/tag update testing.
 - Kept integration version at `0.4.1` because no Explorer runtime behavior changed.
