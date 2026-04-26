@@ -47,4 +47,6 @@ Workbench exports are local-only artifacts and must state whether they represent
 
 The 0.4.1 polish pass keeps that model intact while making clipboard-unavailable behavior calmer, aggregating repeated render events, and making the Workbench toggle slightly more icon-like without promoting it as a normal user feature.
 
+The distribution-readiness starter keeps version `0.4.1` and adds only minimal HACS custom repository metadata plus installation/update documentation clarity. It prepares for future HACS custom repository testing and release-based updates, but it is not a default-store submission, release automation pass, or runtime feature change.
+
 Future scope may include floors, labels, dashboards, services, package/include logic layouts, full template dependency coverage, graph visualization, and deeper execution/context modeling, but those remain planned and unavailable in this phase.

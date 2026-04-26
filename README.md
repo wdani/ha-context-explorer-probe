@@ -105,6 +105,21 @@ Future phases may explore floors, labels, dashboards, services, and deeper logic
 
 The current logic slice is intentionally partial. Future work may broaden coverage to packages, include-based layouts, dashboards, labels, floors, services, richer template analysis, graph visualization, and deeper execution/context modeling.
 
+## Distribution status
+
+The repository is being prepared for a cleaner install/update path, but it should still be treated as an early custom integration.
+
+Current distribution posture:
+
+- manual installation remains supported
+- HACS custom repository metadata is present as a starter step
+- release-based updates with Git tags are the intended future direction
+- no GitHub release or tag has been created by this documentation step
+- this is not a HACS default-store submission
+- full HACS compliance is not claimed yet; brand assets, validation automation, and release publishing still need a later pass
+
+The integration still uses the internal compatibility domain and folder name `ha_context_explorer_probe`. That is expected for now; the user-facing name is **HA Context Explorer**.
+
 ## Local reference material
 
 The `_local_reference/` directory is ignored and is not repository source of truth. It may be used only as local shaping/reference material while keeping implementation generic for different Home Assistant installations.
@@ -113,10 +128,47 @@ Do not copy reference data into repository source files or docs.
 
 ## Installation
 
+### Manual install
+
 1. Copy `custom_components/ha_context_explorer_probe` into your Home Assistant `custom_components` directory.
 2. Restart Home Assistant.
 3. Add the integration from **Settings -> Devices & Services**.
 4. Open **HA Context Explorer** from the sidebar.
+
+### HACS custom repository install
+
+HACS custom repository support is being prepared, not presented as a finished official release channel yet.
+
+Expected future/manual test path:
+
+1. In HACS, open **Custom repositories**.
+2. Add `https://github.com/wdani/ha-context-explorer`.
+3. Select repository type **Integration**.
+4. Install the integration if HACS accepts the repository.
+5. Restart Home Assistant.
+6. Add **HA Context Explorer** from **Settings -> Devices & Services**.
+
+If the integration does not appear after installation, restart Home Assistant and clear the browser cache before retesting.
+
+## Updates
+
+### Manual update
+
+1. Replace the local `custom_components/ha_context_explorer_probe` directory with the newer repository copy.
+2. Restart Home Assistant.
+3. Refresh the browser if the panel frontend still shows an older version.
+
+### HACS and release-tag direction
+
+The intended update direction is HACS custom repository usage backed by GitHub releases with version tags. HACS can use the default branch when releases are not published, but release-based updates should provide a cleaner user experience once the project is ready. Tags alone are not treated here as the finished update channel; a future release should publish a proper GitHub release.
+
+Not done yet:
+
+- no GitHub release created
+- no tag created
+- no release automation added
+- no HACS default-store submission
+- no claim of full HACS compliance across all current checks
 
 ## Validation status
 

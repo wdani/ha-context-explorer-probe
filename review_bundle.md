@@ -1,5 +1,120 @@
 # Review Bundle
 
+## Distribution/update-readiness starter review
+
+Task: first small HACS custom repository and release/update documentation readiness pass after the merged 0.4.1 Developer Workbench foundation.
+
+Result: minimal metadata and documentation cleanup only. No runtime behavior changed and the integration version remains `0.4.1`.
+
+Repository/distribution readiness issues found:
+
+- Repository structure already matches the basic HACS integration layout: one integration under `custom_components/`.
+- The integration manifest already had the required HACS integration keys: `domain`, `documentation`, `issue_tracker`, `codeowners`, `name`, and `version`.
+- The manifest still pointed documentation and issue tracker URLs at the old `ha-context-explorer-probe` repository.
+- No root `hacs.json` existed, even though current HACS docs describe it as the root metadata file for HACS UI/path behavior.
+- No `info.md` exists, so rendering README through `hacs.json` is the smallest reasonable starter metadata choice.
+- No brand assets, HACS validation action, Hassfest action, GitHub release, or tag were added in this task.
+
+What changed:
+
+- Added root `hacs.json`:
+  - `name`: `HA Context Explorer`
+  - `render_readme`: `true`
+- Updated `manifest.json` documentation and issue tracker URLs to `https://github.com/wdani/ha-context-explorer`.
+- Clarified README manual install, HACS custom repository test path, manual update, and future GitHub-release-based update direction.
+- Updated changelog and AI docs to record this as a distribution-readiness starter.
+
+HACS readiness status:
+
+- The repository is better prepared for HACS custom repository testing.
+- Full HACS readiness is still not claimed.
+- Current uncertainty/reminders:
+  - HACS docs require/expect a known repository structure and root `hacs.json`.
+  - Current HACS integration docs also describe brand assets as required; this task did not add brand assets.
+  - GitHub releases are preferred but not required; this task did not create a release or tag.
+  - Default-store submission has additional requirements and is explicitly out of scope.
+
+Version decision:
+
+- No version bump was made.
+- Rationale: changes are docs/repository metadata only and do not alter Home Assistant runtime behavior, endpoint behavior, frontend behavior, data shaping, or security model.
+
+### Distribution starter validation results
+
+Branch check:
+
+```powershell
+Get-Content -Path .git\HEAD
+```
+
+Result:
+
+```text
+ref: refs/heads/distribution/update-readiness-step
+```
+
+Repository structure:
+
+```powershell
+Get-ChildItem -Path custom_components -Directory | Select-Object -ExpandProperty Name
+```
+
+Result:
+
+```text
+ha_context_explorer_probe
+```
+
+Metadata checks:
+
+```powershell
+python -m json.tool hacs.json
+python -m json.tool custom_components\ha_context_explorer_probe\manifest.json
+```
+
+Result:
+
+```text
+hacs.json and manifest.json parse successfully.
+```
+
+Version alignment:
+
+```powershell
+Select-String -Path custom_components\ha_context_explorer_probe\const.py,custom_components\ha_context_explorer_probe\manifest.json -Pattern '0\.4\.1'
+```
+
+Result:
+
+```text
+Integration version remains 0.4.1 in constants and manifest.
+```
+
+Safety scan:
+
+```powershell
+Select-String -Path custom_components\ha_context_explorer_probe\**\* -Pattern 'def post|def put|def patch|def delete|async def post|async def put|async def patch|async def delete|hass\.services\.async_call|async_register_service|register_admin_service|\.async_set\(|\.storage|secrets\.yaml|hassTokens|sessionStorage|Authorization|Bearer|fetch\(' -CaseSensitive:$false
+```
+
+Result:
+
+```text
+Only the sanitizer's sensitive-key regex contains the literal words authorization/bearer. No service calls, mutation handlers, .storage access, secrets.yaml access, token scraping, sessionStorage, Authorization/Bearer usage, or fetch() calls were found.
+```
+
+Reference-data safety:
+
+```powershell
+Select-String -Path hacs.json,README.md,CHANGELOG.md,docs\ai\*.md,custom_components\ha_context_explorer_probe\**\* -Pattern 'probe_input' -CaseSensitive:$false
+Select-String -Path custom_components\ha_context_explorer_probe\**\* -Pattern '_local_reference' -CaseSensitive:$false
+```
+
+Result:
+
+```text
+No reference snapshot data or probe_input references were copied into implementation or docs.
+```
+
 ## 0.4.1 Developer Workbench live-test polish review
 
 Task: targeted polish pass after live Home Assistant testing of the 0.4.0 Developer Workbench foundation.

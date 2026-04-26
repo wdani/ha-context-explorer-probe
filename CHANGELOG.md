@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Added minimal HACS custom repository starter metadata with root `hacs.json`.
+- Updated integration documentation and issue tracker metadata to point at `wdani/ha-context-explorer`.
+- Clarified README installation and update paths for manual installs, HACS custom repository testing, and future release-based updates.
+- Kept integration version at `0.4.1` because no runtime behavior changed.
+
 ## 0.4.1
 
 - Polished the existing Developer Workbench foundation after live Home Assistant testing.
