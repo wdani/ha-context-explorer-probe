@@ -1,8 +1,32 @@
+import {
+  PRODUCT_NAME,
+  WORKBENCH_EVENT_LIMIT,
+  buildExportBundle,
+  buildMaskSummary,
+  buildPayloadSummary,
+  buildProvenance,
+  buildTranscript,
+  compactForLog,
+  copyText,
+  downloadJson,
+  persistWorkbenchEnabled,
+  readWorkbenchEnabled,
+  sanitizeForWorkbench,
+} from "./workbench.js?v=0.4.1";
+
 const API_PATH_BASE = "ha_context_explorer_probe";
-const APP_VERSION = "0.3.3";
+const APP_VERSION = "0.4.1";
 const PANEL_ELEMENT = "ha-context-explorer-probe-panel";
 const STATIC_BASE = "/local/ha_context_explorer_probe";
 const SCOPES = ["overview", "entities", "devices", "areas", "integrations", "relationships", "logic"];
+const WORKBENCH_PANES = ["review", "payload", "runtime", "privacy", "actions"];
+const WORKBENCH_COPY_UNAVAILABLE = "Clipboard copy is unavailable in this browser context. Download JSON remains available.";
+const AGGREGATED_EVENT_TYPES = new Set(["scope_rendered"]);
+const DEFAULT_MASK_TOKENS = {
+  "[masked-ipv4]": { reason: "ipv4_like_value", description: "IPv4-like string value masked before display or export." },
+  "[masked-mac]": { reason: "mac_like_value", description: "MAC-like string value masked before display or export." },
+  "[masked-wifi]": { reason: "wifi_context", description: "Wi-Fi-context value masked before display or export." },
+};
 const RELATIONSHIP_SETS = [
   {
     key: "entity_to_device",
@@ -70,6 +94,27 @@ const appState = {
     lastFailure: "",
     wrapperRecoveryScheduled: false,
     wrapperObserver: null,
+  },
+};
+
+const workbenchState = {
+  enabled: readWorkbenchEnabled(),
+  activePane: "review",
+  metadata: null,
+  metadataLoading: false,
+  metadataError: null,
+  events: [],
+  lastSuccessfulLoads: {},
+  reviewSnapshot: null,
+  payloadSummary: null,
+  privacySummary: null,
+  transcript: "",
+  lastBundle: null,
+  lastProvenance: null,
+  lastCopyStatus: "",
+  clipboard: {
+    checked: false,
+    available: false,
   },
 };
 
@@ -228,7 +273,7 @@ function ensureProbePanelMounted(reason) {
   const element = document.createElement(PANEL_ELEMENT);
   wrapper.append(element);
   syncProbeElementContext(element, wrapper);
-  noteWrapperRecovery(reason, "Home Assistant panel wrapper was empty; remounted the probe panel element.");
+  noteWrapperRecovery(reason, "Home Assistant panel wrapper was empty; remounted the HA Context Explorer panel element.");
   return true;
 }
 
@@ -342,6 +387,7 @@ function syncProbeElementContext(element, wrapper) {
 
 function noteWrapperRecovery(reason, detail) {
   appState.lifecycle.lastRecovery = `${reason}: ${detail}`;
+  recordWorkbenchEvent("wrapper_recovery", { reason, detail });
   if (appState.host && appState.host.isConnected) {
     renderLifecycleNotice("Panel wrapper restored", detail);
   }
@@ -358,7 +404,7 @@ function renderWrapperRecoveryFailure(reason, error) {
     <div class="app-shell lifecycle-fallback">
       <section class="empty-state">
         <strong>Panel wrapper could not be restored</strong>
-        <p>Home Assistant left the custom panel wrapper mounted, but the probe panel element could not be reattached.</p>
+        <p>Home Assistant left the custom panel wrapper mounted, but the HA Context Explorer panel element could not be reattached.</p>
         <p>Lifecycle context: ${escapeText(reason)}.</p>
         <p id="wrapper-recovery-error"></p>
       </section>
@@ -457,6 +503,10 @@ function resumePanel(reason) {
     return;
   }
 
+  if (workbenchState.enabled) {
+    loadWorkbenchMetadata();
+  }
+
   if (appState.loading[scope] || !appState.data[scope]) {
     loadScope(scope);
     return;
@@ -472,8 +522,10 @@ function initializeShell(root) {
   bindTabs();
   bindEntityFilters();
   bindRawToggle();
+  bindWorkbenchControls();
   appState.initialized = true;
   syncShellState();
+  recordWorkbenchEvent("shell_initialized", { version: APP_VERSION });
 }
 
 function syncShellState() {
@@ -498,10 +550,13 @@ function syncShellState() {
   if (rawToggle) {
     rawToggle.checked = appState.showRawIds;
   }
+
+  syncWorkbenchShell();
 }
 
 function noteLifecycleRecovery(reason, detail) {
   appState.lifecycle.lastRecovery = `${reason}: ${detail}`;
+  recordWorkbenchEvent("lifecycle_recovery", { reason, detail });
   renderLifecycleNotice("Panel shell restored", detail);
 }
 
@@ -523,6 +578,7 @@ function renderLifecycleFailure(host, error, reason = "lifecycle restore") {
   appState.root = root;
   appState.initialized = false;
   appState.lifecycle.lastFailure = reason;
+  recordWorkbenchEvent("lifecycle_failure", { reason, message: error instanceof Error ? error.message : String(error || "Unknown") });
   root.innerHTML = `
     <link rel="stylesheet" href="${STATIC_BASE}/styles.css?v=${APP_VERSION}" />
     <div class="app-shell lifecycle-fallback">
@@ -548,12 +604,21 @@ function shellHtml() {
     <div class="app-shell" id="probe-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Context Explorer Probe</p>
-          <h1>Home Assistant Context</h1>
+          <p class="eyebrow">HA Context Explorer</p>
+          <h1>HA Context Explorer</h1>
         </div>
-        <div class="status-chip" aria-live="polite">
-          <span id="data-state-label">Loading</span>
-          <small id="data-state-detail">Preparing data views</small>
+        <div class="topbar-actions">
+          <button class="icon-button workbench-toggle" id="workbench-toggle" type="button" title="Developer Workbench" aria-label="Developer Workbench" aria-pressed="false">
+            <svg class="workbench-toggle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M8.6 16.8 3.8 12l4.8-4.8" />
+              <path d="m15.4 7.2 4.8 4.8-4.8 4.8" />
+              <path d="m13.2 5.8-2.4 12.4" />
+            </svg>
+          </button>
+          <div class="status-chip" aria-live="polite">
+            <span id="data-state-label">Loading</span>
+            <small id="data-state-detail">Preparing data views</small>
+          </div>
         </div>
       </header>
 
@@ -574,6 +639,7 @@ function shellHtml() {
       <section class="auth-notice" id="auth-notice" hidden aria-live="polite"></section>
       <section class="lifecycle-notice" id="lifecycle-notice" hidden aria-live="polite"></section>
 
+      <div class="main-layout" id="main-layout">
       <main class="workspace">
         <section class="view active" id="view-overview">
           <div class="section-heading">
@@ -678,6 +744,35 @@ function shellHtml() {
           </section>
         </section>
       </main>
+      <aside class="developer-workbench" id="developer-workbench" hidden aria-label="Developer Workbench">
+        <header class="workbench-header">
+          <div>
+            <p class="eyebrow">Developer Workbench</p>
+            <h2>Review Console</h2>
+          </div>
+          <button class="icon-button" id="workbench-close" type="button" title="Close Developer Workbench" aria-label="Close Developer Workbench">x</button>
+        </header>
+        <div class="workbench-export-row">
+          <button class="tool-button" type="button" data-workbench-copy="bundle" data-clipboard-action>Copy bundle</button>
+          <button class="tool-button" type="button" data-workbench-copy="transcript" data-clipboard-action>Copy transcript</button>
+          <button class="tool-button" type="button" data-workbench-copy="payload" data-clipboard-action>Copy payload</button>
+          <button class="tool-button" type="button" data-workbench-copy="download">Download JSON</button>
+        </div>
+        <nav class="workbench-tabs" aria-label="Developer Workbench panes">
+          <button class="workbench-tab active" type="button" data-workbench-pane="review">Review</button>
+          <button class="workbench-tab" type="button" data-workbench-pane="payload">Payload</button>
+          <button class="workbench-tab" type="button" data-workbench-pane="runtime">Runtime</button>
+          <button class="workbench-tab" type="button" data-workbench-pane="privacy">Privacy</button>
+          <button class="workbench-tab" type="button" data-workbench-pane="actions">Actions</button>
+        </nav>
+        <p class="workbench-copy-status" id="workbench-copy-status"></p>
+        <section class="workbench-pane active" id="workbench-pane-review"></section>
+        <section class="workbench-pane" id="workbench-pane-payload"></section>
+        <section class="workbench-pane" id="workbench-pane-runtime"></section>
+        <section class="workbench-pane" id="workbench-pane-privacy"></section>
+        <section class="workbench-pane" id="workbench-pane-actions"></section>
+      </aside>
+      </div>
     </div>
   `;
 }
@@ -722,6 +817,364 @@ function bindRawToggle() {
   });
 }
 
+function bindWorkbenchControls() {
+  const toggle = byId("workbench-toggle");
+  if (toggle) {
+    toggle.addEventListener("click", () => setWorkbenchEnabled(!workbenchState.enabled, "topbar toggle"));
+  }
+
+  const close = byId("workbench-close");
+  if (close) {
+    close.addEventListener("click", () => setWorkbenchEnabled(false, "close button"));
+  }
+
+  appState.root.querySelectorAll("[data-workbench-pane]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!WORKBENCH_PANES.includes(button.dataset.workbenchPane)) {
+        return;
+      }
+      workbenchState.activePane = button.dataset.workbenchPane;
+      recordWorkbenchEvent("workbench_pane", { pane: workbenchState.activePane });
+      renderWorkbench();
+    });
+  });
+
+  appState.root.querySelectorAll("[data-workbench-copy]").forEach((button) => {
+    button.addEventListener("click", () => handleWorkbenchExport(button.dataset.workbenchCopy));
+  });
+}
+
+function setWorkbenchEnabled(enabled, reason) {
+  if (enabled && !isAdminUser()) {
+    workbenchState.enabled = false;
+    persistWorkbenchEnabled(false);
+    recordWorkbenchEvent("workbench_admin_blocked", { reason });
+    syncWorkbenchShell();
+    renderWorkbench();
+    return;
+  }
+
+  workbenchState.enabled = Boolean(enabled);
+  persistWorkbenchEnabled(workbenchState.enabled);
+  recordWorkbenchEvent(workbenchState.enabled ? "workbench_enabled" : "workbench_disabled", { reason });
+  syncWorkbenchShell();
+  if (workbenchState.enabled) {
+    loadWorkbenchMetadata();
+    refreshWorkbenchSnapshot(appState.activeScope || "overview");
+  }
+  renderWorkbench();
+}
+
+function syncWorkbenchShell() {
+  const shell = byId("probe-shell");
+  const toggle = byId("workbench-toggle");
+  const panel = byId("developer-workbench");
+  if (!shell || !toggle || !panel) {
+    return;
+  }
+
+  const admin = isAdminUser();
+  const visible = Boolean(workbenchState.enabled && admin);
+  shell.classList.toggle("workbench-enabled", visible);
+  toggle.hidden = !admin;
+  toggle.disabled = !admin;
+  toggle.classList.toggle("active", visible);
+  toggle.setAttribute("aria-pressed", visible ? "true" : "false");
+  panel.hidden = !visible;
+  syncWorkbenchCopyControls();
+}
+
+function detectClipboardAvailability() {
+  if (!workbenchState.clipboard.checked) {
+    workbenchState.clipboard.available = Boolean(window.isSecureContext && navigator.clipboard?.writeText);
+    workbenchState.clipboard.checked = true;
+  }
+  return workbenchState.clipboard.available;
+}
+
+function syncWorkbenchCopyControls() {
+  if (!appState.root) {
+    return;
+  }
+
+  const available = detectClipboardAvailability();
+  appState.root.querySelectorAll("[data-clipboard-action]").forEach((button) => {
+    button.disabled = !available;
+    button.classList.toggle("disabled", !available);
+    button.title = available ? "" : WORKBENCH_COPY_UNAVAILABLE;
+    button.setAttribute("aria-disabled", available ? "false" : "true");
+  });
+
+  if (workbenchState.enabled && !available && !workbenchState.lastCopyStatus) {
+    setWorkbenchCopyStatus(WORKBENCH_COPY_UNAVAILABLE);
+  }
+}
+
+async function loadWorkbenchMetadata() {
+  if (!workbenchState.enabled || !isAdminUser() || workbenchState.metadata || workbenchState.metadataLoading) {
+    return;
+  }
+  if (!appState.hass || typeof appState.hass.callApi !== "function") {
+    workbenchState.metadataError = "Home Assistant panel context is not available.";
+    renderWorkbench();
+    return;
+  }
+
+  workbenchState.metadataLoading = true;
+  recordWorkbenchEvent("workbench_metadata_fetch_start", {});
+  try {
+    workbenchState.metadata = await appState.hass.callApi("GET", `${API_PATH_BASE}/workbench`);
+    workbenchState.metadataError = null;
+    recordWorkbenchEvent("workbench_metadata_fetch_success", { version: workbenchState.metadata?.version });
+  } catch (error) {
+    workbenchState.metadataError = errorMessage(error);
+    recordWorkbenchEvent("workbench_metadata_fetch_failure", { message: workbenchState.metadataError });
+  } finally {
+    workbenchState.metadataLoading = false;
+    renderWorkbench();
+  }
+}
+
+function renderWorkbench() {
+  if (!appState.root) {
+    return;
+  }
+
+  syncWorkbenchShell();
+  if (!workbenchState.enabled || !isAdminUser()) {
+    return;
+  }
+
+  appState.root.querySelectorAll("[data-workbench-pane]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.workbenchPane === workbenchState.activePane);
+  });
+  appState.root.querySelectorAll(".workbench-pane").forEach((pane) => {
+    pane.classList.toggle("active", pane.id === `workbench-pane-${workbenchState.activePane}`);
+  });
+
+  setWorkbenchCopyStatus(workbenchState.lastCopyStatus);
+  renderWorkbenchReview();
+  renderWorkbenchPayload();
+  renderWorkbenchRuntime();
+  renderWorkbenchPrivacy();
+  renderWorkbenchActions();
+}
+
+function renderWorkbenchReview() {
+  const target = clearById("workbench-pane-review");
+  const snapshot = workbenchState.reviewSnapshot || buildBestEffortReviewSnapshot(appState.activeScope || "overview");
+  const provenance = workbenchState.lastProvenance || buildProvenance({ appState, workbenchState, liveRendered: false });
+
+  target.append(workbenchMiniCard("Provenance", provenance.kind, provenance.caveats?.[0] || "Current active view review artifact."));
+  target.append(workbenchMiniCard("Current view", snapshot.page_title || appState.activeScope, `${snapshot.sections?.length || 0} section(s)`));
+
+  const sectionList = el("div", "workbench-stack");
+  (snapshot.sections || []).forEach((section) => {
+    const row = el("article", "workbench-row");
+    row.append(el("strong", "", section.title || section.id));
+    row.append(el("small", "", `${section.prominence || "secondary"} / ${section.tone || "info"} / ${section.visibility || "unknown"}`));
+    row.append(el("p", "", `${section.items?.length || 0} rendered item(s)`));
+    (section.items || []).slice(0, 8).forEach((item) => {
+      row.append(el("span", "workbench-line", `${item.title || item.type}${item.badges?.length ? ` [${item.badges.join(", ")}]` : ""}`));
+    });
+    if ((section.items || []).length > 8) {
+      row.append(el("span", "workbench-line muted-text", `+${section.items.length - 8} more item(s)`));
+    }
+    sectionList.append(row);
+  });
+  target.append(sectionList);
+}
+
+function renderWorkbenchPayload() {
+  const target = clearById("workbench-pane-payload");
+  const summary = workbenchState.payloadSummary || buildPayloadSummary(appState.data[appState.activeScope] || {}, appState.activeScope);
+
+  target.append(workbenchMiniCard("Active scope", summary.scope || appState.activeScope, `${summary.root_fields?.length || 0} root field(s)`));
+  const fields = el("div", "workbench-chip-list");
+  (summary.root_fields || []).forEach((field) => fields.append(el("span", "badge", field.field)));
+  target.append(fields);
+
+  (summary.collections || []).forEach((collection) => {
+    const row = el("article", "workbench-row");
+    row.append(el("strong", "", collection.key));
+    row.append(el("small", "", `${collection.count} item(s)`));
+    row.append(el("p", "", `${collection.fields.length} observed field(s)`));
+    target.append(row);
+  });
+
+  const pre = el("pre", "workbench-pre", JSON.stringify(summary.payload || {}, null, 2));
+  target.append(pre);
+}
+
+function renderWorkbenchRuntime() {
+  const target = clearById("workbench-pane-runtime");
+  const route = sanitizeForWorkbench({
+    path: appState.route?.path,
+    prefix: appState.route?.prefix,
+    tail: appState.route?.tail,
+  });
+  const loadingScopes = Object.entries(appState.loading || {})
+    .filter(([, loading]) => loading)
+    .map(([scope]) => scope);
+  const lastLoad = workbenchState.lastSuccessfulLoads[appState.activeScope];
+
+  target.append(workbenchMiniCard("Mode", workbenchState.enabled ? "Workbench on" : "Workbench off", "Browser-local enable flag only."));
+  target.append(workbenchMiniCard("Route", route.path || route.prefix || "unknown", `Scope: ${appState.activeScope}`));
+  target.append(workbenchMiniCard("Loading", loadingScopes.length ? loadingScopes.join(", ") : "No active loads", appState.authBlocked ? "Protected data access is currently blocked." : "Protected data path is available."));
+  target.append(workbenchMiniCard("Last successful load", lastLoad?.at || "Not loaded in this session", lastLoad ? `${lastLoad.root_fields} root field(s)` : "No successful load recorded for this active scope."));
+  target.append(workbenchMiniCard("Raw identifiers", appState.showRawIds ? "Shown" : "Hidden", "Session-only display mode."));
+  target.append(workbenchMiniCard("Workbench metadata", workbenchState.metadata ? "Loaded" : workbenchState.metadataLoading ? "Loading" : "Unavailable", workbenchState.metadataError || `Version ${workbenchState.metadata?.version || APP_VERSION}`));
+  target.append(workbenchMiniCard("Lifecycle", appState.lifecycle.lastReason || "ready", appState.lifecycle.lastRecovery || appState.lifecycle.lastFailure || "No lifecycle caveat recorded."));
+
+  const events = el("div", "workbench-stack");
+  workbenchState.events.slice().reverse().forEach((event) => {
+    const row = el("article", "workbench-row compact");
+    row.append(el("strong", "", event.count > 1 ? `${event.type} x${event.count}` : event.type));
+    row.append(el("small", "", event.count > 1 ? `${event.first_at || event.at} -> ${event.at}` : event.at));
+    row.append(el("pre", "workbench-event-detail", JSON.stringify(event.detail || {}, null, 2)));
+    events.append(row);
+  });
+  target.append(events);
+}
+
+function renderWorkbenchPrivacy() {
+  const target = clearById("workbench-pane-privacy");
+  const summary = workbenchState.privacySummary || buildMaskSummary({}, workbenchState.metadata?.privacy?.mask_tokens || DEFAULT_MASK_TOKENS);
+  target.append(workbenchMiniCard("Masked values", String(summary.total_masked_values || 0), "Best-effort masking, not guaranteed anonymization."));
+
+  (summary.tokens || []).forEach((item) => {
+    const row = el("article", "workbench-row");
+    row.append(el("strong", "", `${item.token} (${item.count})`));
+    row.append(el("small", "", item.reason));
+    row.append(el("p", "", item.description || ""));
+    (item.locations || []).slice(0, 10).forEach((location) => row.append(el("span", "workbench-line", location)));
+    target.append(row);
+  });
+}
+
+function renderWorkbenchActions() {
+  const target = clearById("workbench-pane-actions");
+  const actions = workbenchState.metadata?.dev_actions || {};
+  target.append(workbenchMiniCard("Dev Actions", actions.write_actions_enabled ? "Write actions enabled" : "No write actions", "Reserved capability plane for future guarded developer actions."));
+  const list = el("div", "workbench-stack");
+  [
+    ["Registry", `${actions.registered_actions?.length || 0} registered action(s)`],
+    ["Dry run", actions.dry_run_default ? "required by default" : "not configured"],
+    ["Arming", actions.arming_required ? "reserved" : "not configured"],
+    ["Typed confirmation", actions.typed_confirmation_reserved ? "reserved" : "not configured"],
+    ["Audit trail", actions.audit_trail_reserved ? "reserved" : "not configured"],
+  ].forEach(([title, text]) => {
+    const row = el("article", "workbench-row compact");
+    row.append(el("strong", "", title));
+    row.append(el("p", "", text));
+    list.append(row);
+  });
+  target.append(list);
+}
+
+function workbenchMiniCard(label, value, detail) {
+  const card = el("article", "workbench-mini-card");
+  card.append(el("span", "metric-label", label));
+  card.append(el("strong", "", value || "Unknown"));
+  if (detail) {
+    card.append(el("small", "", detail));
+  }
+  return card;
+}
+
+async function handleWorkbenchExport(kind) {
+  refreshWorkbenchSnapshot(appState.activeScope || "overview");
+  const bundle = workbenchState.lastBundle;
+  if (!bundle) {
+    return;
+  }
+
+  try {
+    if (kind === "bundle") {
+      if (!detectClipboardAvailability()) {
+        setWorkbenchCopyUnavailable();
+        return;
+      }
+      await copyText(JSON.stringify(bundle, null, 2));
+      workbenchState.lastCopyStatus = "Review bundle copied.";
+    } else if (kind === "transcript") {
+      if (!detectClipboardAvailability()) {
+        setWorkbenchCopyUnavailable();
+        return;
+      }
+      await copyText(workbenchState.transcript || buildTranscript(bundle));
+      workbenchState.lastCopyStatus = "Rendered transcript copied.";
+    } else if (kind === "payload") {
+      if (!detectClipboardAvailability()) {
+        setWorkbenchCopyUnavailable();
+        return;
+      }
+      await copyText(JSON.stringify(workbenchState.payloadSummary?.payload || {}, null, 2));
+      workbenchState.lastCopyStatus = "Sanitized payload copied.";
+    } else if (kind === "download") {
+      downloadJson(`ha-context-explorer-workbench-${appState.activeScope || "view"}.json`, bundle);
+      workbenchState.lastCopyStatus = "Workbench bundle downloaded.";
+    }
+    recordWorkbenchEvent("workbench_export", { kind, provenance: bundle.provenance?.kind });
+  } catch (error) {
+    workbenchState.lastCopyStatus = errorMessage(error);
+    recordWorkbenchEvent("workbench_export_failure", { kind, message: workbenchState.lastCopyStatus });
+  }
+  renderWorkbench();
+}
+
+function setWorkbenchCopyUnavailable() {
+  workbenchState.lastCopyStatus = WORKBENCH_COPY_UNAVAILABLE;
+  recordWorkbenchEvent("workbench_copy_unavailable", { reason: "clipboard_unavailable" });
+  syncWorkbenchCopyControls();
+  renderWorkbench();
+}
+
+function setWorkbenchCopyStatus(message) {
+  const target = byId("workbench-copy-status");
+  if (!target) {
+    return;
+  }
+  target.textContent = message || "";
+}
+
+function isAdminUser() {
+  return Boolean(appState.hass?.user?.is_admin);
+}
+
+function recordWorkbenchEvent(type, detail = {}) {
+  const compactDetail = compactForLog(detail);
+  const aggregateKey = workbenchEventAggregateKey(type, compactDetail);
+  const previous = workbenchState.events[workbenchState.events.length - 1];
+  const at = new Date().toISOString();
+  if (aggregateKey && previous?.aggregate_key === aggregateKey) {
+    previous.at = at;
+    previous.count = Number(previous.count || 1) + 1;
+    previous.detail = compactDetail;
+    return;
+  }
+
+  const event = {
+    at,
+    first_at: at,
+    type,
+    detail: compactDetail,
+    count: 1,
+    aggregate_key: aggregateKey || undefined,
+  };
+  workbenchState.events.push(event);
+  if (workbenchState.events.length > WORKBENCH_EVENT_LIMIT) {
+    workbenchState.events.splice(0, workbenchState.events.length - WORKBENCH_EVENT_LIMIT);
+  }
+}
+
+function workbenchEventAggregateKey(type, detail) {
+  if (!AGGREGATED_EVENT_TYPES.has(type)) {
+    return "";
+  }
+  return `${type}:${detail.scope || ""}`;
+}
+
 function activateScope(scope) {
   if (!SCOPES.includes(scope)) {
     return;
@@ -731,6 +1184,7 @@ function activateScope(scope) {
   }
 
   appState.activeScope = scope;
+  recordWorkbenchEvent("scope_activated", { scope });
   appState.root.querySelectorAll("[data-scope]").forEach((button) => {
     button.classList.toggle("active", button.dataset.scope === scope);
   });
@@ -744,6 +1198,7 @@ function activateScope(scope) {
 async function loadScope(scope) {
   if (appState.authBlocked) {
     appState.data[scope] = authBlockedPayload(scope);
+    recordWorkbenchEvent("scope_auth_blocked", { scope });
     if (appState.root) {
       renderScope(scope);
     }
@@ -774,11 +1229,17 @@ async function loadScope(scope) {
   }
 
   appState.loading[scope] = true;
+  recordWorkbenchEvent("scope_fetch_start", { scope });
   setStatus("Loading", "Reading Home Assistant data");
   setViewLoading(scope);
 
   try {
     appState.data[scope] = await appState.hass.callApi("GET", `${API_PATH_BASE}/${scope}`);
+    workbenchState.lastSuccessfulLoads[scope] = {
+      at: new Date().toISOString(),
+      root_fields: Object.keys(appState.data[scope] || {}).sort(),
+    };
+    recordWorkbenchEvent("scope_fetch_success", { scope, root_fields: Object.keys(appState.data[scope] || {}).length });
     if (appState.root) {
       setStatus("Connected", "Admin data endpoint available");
       clearGlobalNotice();
@@ -789,6 +1250,7 @@ async function loadScope(scope) {
       blockProtectedData(message);
     } else {
       appState.data[scope] = { error: message, items: [], warnings: [] };
+      recordWorkbenchEvent("scope_fetch_failure", { scope, message });
       if (appState.root) {
         setStatus("Unavailable", shortError(error));
       }
@@ -822,9 +1284,266 @@ function renderScope(scope) {
     } else if (scope === "logic") {
       renderLogic();
     }
+    refreshWorkbenchSnapshot(scope);
+    recordWorkbenchEvent("scope_rendered", { scope });
   } catch (error) {
     renderLifecycleFailure(appState.host, error, `render ${scope}`);
   }
+}
+
+function refreshWorkbenchSnapshot(scope) {
+  const liveSnapshot = captureRenderedReviewSnapshot(scope);
+  const snapshot = liveSnapshot || buildBestEffortReviewSnapshot(scope);
+  const payloadSummary = buildPayloadSummary(appState.data[scope] || {}, scope);
+  const privacySummary = buildMaskSummary(
+    {
+      rendered_review: snapshot,
+      active_payload: payloadSummary.payload,
+    },
+    workbenchState.metadata?.privacy?.mask_tokens || DEFAULT_MASK_TOKENS
+  );
+  const provenance = buildProvenance({
+    appState,
+    workbenchState,
+    liveRendered: Boolean(liveSnapshot),
+  });
+
+  workbenchState.reviewSnapshot = snapshot;
+  workbenchState.payloadSummary = payloadSummary;
+  workbenchState.privacySummary = privacySummary;
+  workbenchState.lastProvenance = provenance;
+  const bundle = buildExportBundle({ appState, workbenchState, payloadSummary, privacySummary, provenance });
+  const transcript = buildTranscript(bundle);
+  bundle.transcript = transcript;
+  workbenchState.lastBundle = bundle;
+  workbenchState.transcript = transcript;
+
+  if (workbenchState.enabled) {
+    renderWorkbench();
+  }
+}
+
+function captureRenderedReviewSnapshot(scope) {
+  if (!appState.root) {
+    return null;
+  }
+
+  const view = byId(`view-${scope}`);
+  if (!view || !view.classList.contains("active")) {
+    return null;
+  }
+
+  return {
+    schema: "rendered_review_snapshot/v1",
+    product_name: PRODUCT_NAME,
+    active_scope: scope,
+    generated_at: new Date().toISOString(),
+    live_rendered: true,
+    page_title: view.querySelector("h2")?.textContent?.trim() || humanizeIdentifier(scope),
+    raw_identifier_mode: Boolean(appState.showRawIds),
+    visibility: {
+      mounted: true,
+      immediately_visible: true,
+      collapsed: false,
+    },
+    notices: collectNotices(),
+    sections: sectionDefinitions(scope)
+      .map((definition, index) => collectRenderedSection(definition, index))
+      .filter(Boolean),
+  };
+}
+
+function buildBestEffortReviewSnapshot(scope) {
+  const payload = appState.data[scope] || {};
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  return {
+    schema: "rendered_review_snapshot/v1",
+    product_name: PRODUCT_NAME,
+    active_scope: scope,
+    generated_at: new Date().toISOString(),
+    live_rendered: false,
+    page_title: humanizeIdentifier(scope),
+    raw_identifier_mode: Boolean(appState.showRawIds),
+    visibility: {
+      mounted: Boolean(appState.root),
+      immediately_visible: false,
+      collapsed: false,
+    },
+    notices: collectNotices(),
+    sections: [
+      {
+        id: `${scope}-best-effort`,
+        title: `${humanizeIdentifier(scope)} Snapshot`,
+        order: 0,
+        prominence: "primary",
+        tone: payload.error ? "warning" : "info",
+        visibility: "hidden",
+        items: payload.error
+          ? [{ type: "empty_state", title: "Data unavailable", body: payload.error, prominence: "primary", tone: "warning" }]
+          : items.slice(0, 120).map((item, index) => ({
+              type: "payload_item",
+              order: index,
+              title: item.display_name || item.friendly_name || item.entity_id || item.name || item.domain || `Item ${index + 1}`,
+              subtitle: item.state || item.kind || item.source || "",
+              badges: payloadItemBadges(item),
+              prominence: index < 12 ? "primary" : "secondary",
+              tone: "info",
+              visibility: "hidden",
+            })),
+        truncation: items.length > 120 ? { visible: 120, total: items.length } : null,
+      },
+    ],
+  };
+}
+
+function sectionDefinitions(scope) {
+  const sections = {
+    overview: [
+      ["overview-counts", "Counts", "primary", "info"],
+      ["overview-warnings", "Warnings", "secondary", "warning"],
+      ["future-scopes", "Future scopes", "subtle", "limitation"],
+    ],
+    entities: [["entities-list", "Entities", "primary", "info"]],
+    devices: [["devices-list", "Devices", "primary", "info"]],
+    areas: [["areas-list", "Areas", "primary", "info"]],
+    integrations: [["integrations-list", "Integrations", "primary", "info"]],
+    relationships: [
+      ["relationships-summary", "Relationship counts", "primary", "info"],
+      ["relationships-lists", "Relationship sets", "secondary", "info"],
+    ],
+    logic: [
+      ["logic-summary", "Logic summary", "primary", "info"],
+      ["logic-source-coverage", "Source Coverage", "primary", "limitation"],
+      ["logic-automations", "Automations", "secondary", "info"],
+      ["logic-scripts", "Scripts", "secondary", "info"],
+      ["logic-entity-references", "Entity Usage", "secondary", "info"],
+      ["logic-warnings", "Additional Caveats", "subtle", "limitation"],
+    ],
+  };
+  return (sections[scope] || []).map(([id, title, prominence, tone]) => ({ id, title, prominence, tone }));
+}
+
+function collectRenderedSection(definition, order) {
+  const target = byId(definition.id);
+  if (!target) {
+    return null;
+  }
+
+  const itemNodes = Array.from(
+    target.querySelectorAll(".metric-card, .list-row, .coverage-card, .warning-row, .empty-state, .relationship-row")
+  );
+  const items = itemNodes.map((node, index) => renderedItemFromNode(node, index, definition));
+  const visibleTotal = visibleTotalFromSection(target);
+
+  return {
+    id: definition.id,
+    title: definition.title,
+    order,
+    prominence: definition.prominence,
+    tone: definition.tone,
+    visibility: sectionViewportBand(target, order),
+    display_state: elementDisplayState(target),
+    items,
+    truncation: visibleTotal && visibleTotal.total > visibleTotal.visible ? visibleTotal : null,
+  };
+}
+
+function renderedItemFromNode(node, order, section) {
+  const badges = Array.from(node.querySelectorAll(".badge, .state-pill")).map((badgeNode) => badgeNode.textContent.trim()).filter(Boolean);
+  const title =
+    node.querySelector(".metric-label")?.textContent?.trim() ||
+    node.querySelector(".row-title")?.textContent?.trim() ||
+    node.querySelector(".coverage-header strong")?.textContent?.trim() ||
+    node.querySelector("strong")?.textContent?.trim() ||
+    node.textContent.trim().split("\n")[0]?.trim() ||
+    "Item";
+  const value = node.querySelector(".metric-value")?.textContent?.trim() || "";
+  const subtitle =
+    node.querySelector(".row-subtitle")?.textContent?.trim() ||
+    node.querySelector(".coverage-count")?.textContent?.trim() ||
+    value;
+  const body =
+    node.querySelector(".coverage-detail")?.textContent?.trim() ||
+    Array.from(node.querySelectorAll("p")).map((paragraph) => paragraph.textContent.trim()).filter(Boolean).join(" ");
+
+  return {
+    type: renderedItemType(node),
+    order,
+    title,
+    subtitle,
+    body,
+    badges,
+    prominence: order < 8 && section.prominence === "primary" ? "primary" : section.prominence === "subtle" ? "subtle" : "secondary",
+    tone: renderedItemTone(node, section.tone),
+    visibility: elementDisplayState(node),
+  };
+}
+
+function sectionViewportBand(node, order) {
+  if (!node?.getBoundingClientRect) {
+    return order <= 1 ? "above_the_fold" : "below_the_fold";
+  }
+  const rect = node.getBoundingClientRect();
+  const fold = window.innerHeight || document.documentElement?.clientHeight || 800;
+  return rect.top < fold ? "above_the_fold" : "below_the_fold";
+}
+
+function elementDisplayState(node) {
+  if (!node || node.closest?.("[hidden]")) {
+    return "hidden";
+  }
+  const style = window.getComputedStyle ? window.getComputedStyle(node) : null;
+  if (style && (style.display === "none" || style.visibility === "hidden")) {
+    return "hidden";
+  }
+  const rect = node.getBoundingClientRect?.();
+  if (rect && (rect.width === 0 || rect.height === 0)) {
+    return "hidden";
+  }
+  return "immediately_visible";
+}
+
+function renderedItemType(node) {
+  if (node.classList.contains("metric-card")) return "card";
+  if (node.classList.contains("warning-row")) return "warning";
+  if (node.classList.contains("coverage-card")) return "coverage";
+  if (node.classList.contains("empty-state")) return "empty_state";
+  if (node.classList.contains("relationship-row")) return "relationship";
+  return "row";
+}
+
+function renderedItemTone(node, sectionTone) {
+  if (node.classList.contains("warning-row")) return "warning";
+  if (node.classList.contains("empty-state")) return "limitation";
+  if (node.className.includes("status-parse_failed") || node.className.includes("status-partially_parsed")) return "warning";
+  return sectionTone || "info";
+}
+
+function visibleTotalFromSection(target) {
+  const text = target.textContent || "";
+  const match = text.match(/\b(\d+)\s+of\s+(\d+)\b/);
+  if (!match) {
+    return null;
+  }
+  return { visible: Number(match[1]), total: Number(match[2]) };
+}
+
+function collectNotices() {
+  return ["auth-notice", "lifecycle-notice"]
+    .map((id) => byId(id))
+    .filter((notice) => notice && !notice.hidden)
+    .map((notice, index) => ({
+      order: index,
+      title: notice.querySelector("strong")?.textContent?.trim() || notice.textContent.trim().split("\n")[0],
+      text: notice.textContent.trim(),
+      kind: notice.id === "auth-notice" ? "warning" : "info",
+      prominence: "primary",
+      visibility: "immediately_visible",
+    }));
+}
+
+function payloadItemBadges(item) {
+  return [item.domain, item.integration_label, item.area_label, item.source, item.kind, item.mode].filter(Boolean).slice(0, 8);
 }
 
 function renderOverview() {
@@ -1308,6 +2027,7 @@ function setStatus(label, detail) {
 
 function blockProtectedData(message) {
   appState.authBlocked = message;
+  recordWorkbenchEvent("auth_blocked", { message });
   SCOPES.forEach((scope) => {
     appState.data[scope] = authBlockedPayload(scope);
   });

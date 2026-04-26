@@ -1,15 +1,55 @@
 # AI Change History
 
+## 0.4.1
+
+Targeted live-test polish for the Developer Workbench foundation.
+
+Key changes:
+
+- Clipboard availability is detected once in the panel runtime.
+- Copy actions are disabled with a central non-alarming note when the Clipboard API is unavailable.
+- Download JSON remains available when clipboard copy is unavailable.
+- Repeated `scope_rendered` runtime events are aggregated into a compact count instead of filling the Runtime pane with identical render rows.
+- The admin-only Workbench toggle now uses a subtle icon affordance instead of plain text.
+
+Important boundaries kept:
+
+- No backend source readers, explorer scopes, endpoint URLs, auth/admin checks, service calls, mutation handlers, state changes, `.storage` access, secret access, token scraping, persistent settings beyond the existing Workbench enabled flag, remote uploads, or write-capable Dev Actions were introduced.
+- This is polish on the existing 0.4.0 Workbench foundation, not a new subsystem step.
+
+## 0.4.0
+
+Developer Workbench foundation.
+
+Key changes:
+
+- Added a separate admin-only Developer Workbench beside the normal Core Explorer UI.
+- Added authenticated admin-only `GET /workbench` metadata for version, availability, export schema, persistence mode, privacy mask metadata, and an empty Dev Actions capability contract.
+- Added browser-local persistence for only the Workbench enabled flag.
+- Added Review, Payload, Runtime, Privacy, and Actions panes.
+- Added semantic rendered review snapshots and rendered text transcripts for AI/UI review.
+- Added export provenance so artifacts state whether they represent `current_live_rendered_state` or `best_effort_active_view_snapshot`.
+- Added local-only copy/download utilities for review bundles, transcripts, sanitized payloads, and richer Workbench JSON bundles.
+- Added a bounded runtime event log with compact metadata for lifecycle, wrapper recovery, fetch, render, auth block, and export events.
+- Added privacy/masking diagnostics aligned with backend mask metadata.
+- Added a placeholder Dev Actions plane for future guarded actions; no write actions are implemented.
+- Updated visible product naming to HA Context Explorer while keeping the internal compatibility domain/path unchanged.
+
+Important boundaries kept:
+
+- No new explorer scopes, backend source readers, service calls, mutation handlers, state changes, config writes, `.storage` access, secret access, token scraping, remote uploads, Sentry/GitHub submission, HACS/update-channel work, or persistent Core Explorer preferences were introduced.
+- The Workbench is a foundation for diagnostics, review, and AI-assisted UI/UX analysis, not a finished developer system.
+
 ## 0.3.3
 
 Focused follow-up for the live-observed empty `ha-panel-custom` wrapper failure mode.
 
 Key changes:
 
-- Added a global, route-specific recovery path that can run even when `ha-context-explorer-probe-panel` is no longer present in the active DOM.
-- Detects the probe `ha-panel-custom` wrapper only when the current route and registered panel match this integration.
-- Remounts one missing probe child element when the wrapper is empty, then syncs `hass`, `panel`, `route`, and `narrow` from the Home Assistant wrapper.
-- Avoids duplicate mounts by doing nothing when the probe child already exists or the wrapper is not empty.
+- Added a global, route-specific recovery path that can run even when the HA Context Explorer child element is no longer present in the active DOM.
+- Detects the matching `ha-panel-custom` wrapper only when the current route and registered panel match this integration.
+- Remounts one missing child element when the wrapper is empty, then syncs `hass`, `panel`, `route`, and `narrow` from the Home Assistant wrapper.
+- Avoids duplicate mounts by doing nothing when the child already exists or the wrapper is not empty.
 - Added a wrapper-level visible fallback if remounting fails.
 - Bumped the frontend/cache version to `0.3.3`.
 

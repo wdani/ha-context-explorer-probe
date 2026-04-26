@@ -1,11 +1,36 @@
 # Changelog
 
+## 0.4.1
+
+- Polished the existing Developer Workbench foundation after live Home Assistant testing.
+- Detects Clipboard API availability once and disables copy actions when unavailable instead of showing repeated per-click failures.
+- Keeps Download JSON available when clipboard copy is unavailable.
+- Aggregates repeated `scope_rendered` runtime events so the Runtime pane stays more readable while preserving useful fetch, auth, lifecycle, wrapper recovery, pane, and export events.
+- Replaced the plain Workbench toggle text with a subtle icon affordance while keeping it admin-only and compact.
+- Kept the Core Explorer / Developer Workbench / Dev Actions split, endpoint auth, GET-only behavior, read-only constraints, local-only exports, and existing scopes unchanged.
+- Bumped the integration version to `0.4.1`.
+
+## 0.4.0
+
+- Added the first Developer Workbench foundation as a separate admin-only subsystem beside the normal Core Explorer UI.
+- Added authenticated/admin-only `GET /api/ha_context_explorer_probe/workbench` for safe workbench metadata, privacy mask metadata, export schema metadata, persistence mode, and an empty Dev Actions contract.
+- Added browser-local persistence only for the Workbench enabled flag; diagnostics, payloads, transcripts, and event history are not persisted.
+- Added Review, Payload, Runtime, Privacy, and Actions panes with local-only copy/download utilities.
+- Added semantic rendered review snapshots and transcripts with grouping, ordering, prominence, visibility, warning/limitation metadata, and export provenance.
+- Added explicit provenance for exports: `current_live_rendered_state` versus `best_effort_active_view_snapshot`.
+- Added a bounded runtime event log for lifecycle, fetch, render, wrapper recovery, auth block, and export events without storing full payload copies.
+- Added privacy/masking diagnostics based on backend-owned mask metadata without exposing original masked values.
+- Added a harmless Dev Actions placeholder plane for future guarded action contracts; no write actions are implemented.
+- Kept existing scopes, endpoint auth/admin checks, GET-only behavior, source readers, read-only constraints, and Core Explorer display behavior intact.
+- Updated visible product naming to **HA Context Explorer** while keeping the internal compatibility domain/path unchanged.
+- Bumped the integration version to `0.4.0`.
+
 ## 0.3.3
 
 - Added a focused recovery path for the live-observed case where Home Assistant leaves `ha-panel-custom` mounted but empty.
-- Detects the active probe panel wrapper only on the probe route and only when the probe child element is missing.
-- Remounts a single `ha-context-explorer-probe-panel` child and syncs `hass`, `panel`, `route`, and `narrow` from the Home Assistant wrapper.
-- Avoids duplicate mounts by doing nothing when the probe child already exists or when the wrapper is not empty.
+- Detects the active HA Context Explorer panel wrapper only on the explorer route and only when the explorer child element is missing.
+- Remounts a single internal panel child and syncs `hass`, `panel`, `route`, and `narrow` from the Home Assistant wrapper.
+- Avoids duplicate mounts by doing nothing when the explorer child already exists or when the wrapper is not empty.
 - Adds a compact wrapper-level fallback if remounting fails.
 - Kept endpoint URLs, authenticated/admin-only GET behavior, source readers, source coverage semantics, raw-ID toggle behavior, and read-only constraints unchanged.
 - Bumped the integration version to `0.3.3`.

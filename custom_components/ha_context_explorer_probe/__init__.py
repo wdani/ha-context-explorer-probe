@@ -1,4 +1,4 @@
-"""HA Context Explorer Probe integration."""
+"""HA Context Explorer integration."""
 from __future__ import annotations
 
 from homeassistant.components import frontend, panel_custom

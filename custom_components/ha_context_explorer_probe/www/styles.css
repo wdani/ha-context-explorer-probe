@@ -55,6 +55,78 @@ select {
   max-width: 1320px;
 }
 
+.topbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.icon-button {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-grid;
+  font-weight: 800;
+  height: 42px;
+  justify-content: center;
+  min-width: 42px;
+  padding: 0 10px;
+}
+
+.icon-button.active,
+.icon-button:hover,
+.tool-button:hover {
+  background: var(--accent-soft);
+  border-color: #b8ddd7;
+  color: #0f5d59;
+}
+
+.icon-button[hidden] {
+  display: none;
+}
+
+.workbench-toggle-icon {
+  height: 21px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+  width: 21px;
+}
+
+.workbench-toggle-icon path {
+  fill: none;
+}
+
+.tool-button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  min-height: 36px;
+  padding: 7px 10px;
+}
+
+.tool-button:disabled,
+.tool-button.disabled {
+  background: var(--surface-strong);
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.tool-button:disabled:hover,
+.tool-button.disabled:hover {
+  background: var(--surface-strong);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
 .eyebrow {
   color: var(--accent);
   font-size: 0.78rem;
@@ -150,6 +222,23 @@ h3 {
 .workspace {
   margin: 0 auto;
   max-width: 1320px;
+}
+
+.main-layout {
+  margin: 0 auto;
+  max-width: 1720px;
+}
+
+.app-shell.workbench-enabled .main-layout {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 430px);
+}
+
+.app-shell.workbench-enabled .workspace {
+  margin: 0;
+  max-width: none;
 }
 
 .auth-notice {
@@ -496,6 +585,118 @@ h3 {
   gap: 3px;
 }
 
+.developer-workbench {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(24, 33, 47, 0.12);
+  display: grid;
+  gap: 12px;
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+  padding: 12px;
+  position: sticky;
+  top: 14px;
+}
+
+.developer-workbench[hidden] {
+  display: none;
+}
+
+.workbench-header,
+.workbench-export-row,
+.workbench-tabs {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.workbench-export-row,
+.workbench-tabs {
+  justify-content: flex-start;
+}
+
+.workbench-tab {
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  min-height: 34px;
+  padding: 6px 9px;
+}
+
+.workbench-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.workbench-pane {
+  display: none;
+}
+
+.workbench-pane.active {
+  display: grid;
+  gap: 10px;
+}
+
+.workbench-copy-status {
+  color: var(--accent);
+  font-size: 0.9rem;
+  min-height: 18px;
+}
+
+.workbench-mini-card,
+.workbench-row {
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.workbench-row.compact {
+  gap: 3px;
+}
+
+.workbench-stack,
+.workbench-chip-list {
+  display: grid;
+  gap: 8px;
+}
+
+.workbench-chip-list {
+  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.workbench-line {
+  color: var(--text);
+  display: block;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.workbench-pre,
+.workbench-event-detail {
+  background: #101820;
+  border-radius: 8px;
+  color: #f6f7fb;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 0;
+  max-height: 360px;
+  overflow: auto;
+  padding: 10px;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 800px) {
   .app-shell {
     padding: 14px;
@@ -503,6 +704,11 @@ h3 {
 
   .topbar,
   .section-heading {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .topbar-actions {
     align-items: stretch;
     display: grid;
   }
@@ -519,5 +725,21 @@ h3 {
 
   .relationship-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 920px) {
+  .app-shell.workbench-enabled .main-layout {
+    display: block;
+  }
+
+  .developer-workbench {
+    bottom: 12px;
+    left: 12px;
+    max-height: min(76vh, 680px);
+    position: fixed;
+    right: 12px;
+    top: auto;
+    z-index: 20;
   }
 }

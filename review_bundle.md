@@ -1,5 +1,288 @@
 # Review Bundle
 
+## 0.4.1 Developer Workbench live-test polish review
+
+Task: targeted polish pass after live Home Assistant testing of the 0.4.0 Developer Workbench foundation.
+
+Result: small frontend polish implemented. This is not a new subsystem step and does not change the Core Explorer contract.
+
+Clipboard/copy behavior:
+
+- Clipboard availability is detected once through the browser runtime.
+- Copy bundle, copy transcript, and copy payload buttons are disabled when clipboard copy is unavailable.
+- The Workbench shows one central non-alarming note: clipboard copy is unavailable in this browser context and Download JSON remains available.
+- Download JSON remains enabled because it does not depend on the Clipboard API.
+- The UI no longer emits repeated per-click "Clipboard API is unavailable" failures during the same unavailable runtime.
+
+Runtime log noise reduction:
+
+- Repeated consecutive `scope_rendered` events for the same scope are aggregated into one event row with a count and first/last timestamp.
+- Fetch start/success/failure, auth block, lifecycle recovery, wrapper recovery, pane changes, and export events remain separate.
+- The runtime log remains bounded by the existing fixed-size ring buffer and continues to store compact metadata only.
+
+Icon polish:
+
+- The topbar Workbench toggle now uses a small inline code-style icon instead of plain `</>` text.
+- It remains compact, subtle, and admin-only.
+
+Intentionally unchanged:
+
+- Core Explorer / Developer Workbench / Dev Actions split.
+- Browser-local persistence only for the Workbench enabled flag.
+- Admin-only Workbench access.
+- Local-only exports and provenance model.
+- Endpoint URLs, auth/admin checks, source readers, scope coverage, read-only behavior, and Dev Actions placeholder contract.
+
+### 0.4.1 validation results
+
+Backend syntax:
+
+```powershell
+python -c "import ast, pathlib; files=[pathlib.Path(p) for p in ['custom_components/ha_context_explorer_probe/__init__.py','custom_components/ha_context_explorer_probe/api.py','custom_components/ha_context_explorer_probe/logic.py','custom_components/ha_context_explorer_probe/privacy.py','custom_components/ha_context_explorer_probe/config_flow.py','custom_components/ha_context_explorer_probe/const.py','custom_components/ha_context_explorer_probe/workbench.py']]; [ast.parse(path.read_text(encoding='utf-8'), filename=str(path)) for path in files]; print('AST syntax OK for', len(files), 'backend files')"
+```
+
+Result:
+
+```text
+AST syntax OK for 7 backend files
+```
+
+Manifest JSON:
+
+```powershell
+python -m json.tool custom_components\ha_context_explorer_probe\manifest.json
+```
+
+Result:
+
+```text
+manifest JSON parsed successfully
+```
+
+Frontend syntax:
+
+```powershell
+& 'C:\Users\daniel\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --check custom_components\ha_context_explorer_probe\www\app.js
+& 'C:\Users\daniel\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --check custom_components\ha_context_explorer_probe\www\workbench.js
+```
+
+Result:
+
+```text
+No syntax errors reported.
+```
+
+Safety scan:
+
+```powershell
+Select-String -Path custom_components\ha_context_explorer_probe\**\* -Pattern 'def post|def put|def patch|def delete|async def post|async def put|async def patch|async def delete|hass\.services\.async_call|async_register_service|register_admin_service|\.async_set\(|\.storage|secrets\.yaml|hassTokens|sessionStorage|Authorization|Bearer|fetch\(' -CaseSensitive:$false
+```
+
+Result:
+
+```text
+Only the sanitizer's sensitive-key regex contains the literal words authorization/bearer. No service calls, mutation handlers, .storage access, secrets.yaml access, token scraping, sessionStorage, Authorization/Bearer usage, or fetch() calls were found.
+```
+
+Workbench polish scan:
+
+```powershell
+Select-String -Path custom_components\ha_context_explorer_probe\www\app.js,custom_components\ha_context_explorer_probe\www\styles.css -Pattern 'WORKBENCH_COPY_UNAVAILABLE|detectClipboardAvailability|data-clipboard-action|AGGREGATED_EVENT_TYPES|aggregate_key|workbench-toggle-icon|tool-button:disabled'
+```
+
+Result:
+
+```text
+Expected clipboard availability handling, disabled copy controls, scope_rendered aggregation hooks, and Workbench toggle icon styling were found.
+```
+
+Runtime caveat:
+
+- The changes are statically validated in this sandbox.
+- Live Home Assistant should still confirm the disabled-copy state, Download JSON path, and aggregated runtime event display in the actual panel context.
+
+## 0.4.0 Developer Workbench foundation review
+
+Task: `developer-workbench-foundation`
+
+Result: implemented a first Developer Workbench foundation on top of the stable post-0.3.3 state. This is a substantial internal diagnostics/review subsystem, not a finished ultimate developer system and not a new explorer data scope.
+
+Architecture chosen:
+
+- Core Explorer remains the normal HA Context Explorer UI and keeps the existing read-only scopes.
+- Developer Workbench is a separate, admin-only, explicitly enableable inspector with Review, Payload, Runtime, Privacy, and Actions panes.
+- Dev Actions is represented only as a harmless future capability contract. No write-capable actions are implemented.
+
+Persistence model:
+
+- The only persisted value is the browser-local enabled flag `ha_context_explorer_probe.developer_workbench.enabled`.
+- This makes the Workbench survive reloads without adding Home Assistant config writes, `.storage` writes, or a broader settings system.
+- Runtime events, payload summaries, transcripts, review bundles, and diagnostics are not persisted.
+
+Normal UI cleanliness:
+
+- The Workbench is disabled by default.
+- When disabled, the inspector is not shown and the Core Explorer layout remains the normal product UI.
+- The enable control is admin-only and subtle; non-admin users do not get the Workbench surface.
+- Desktop uses a right-side inspector; narrow layouts use a drawer/overlay style so the Core Explorer remains usable.
+
+Diagnostics surfaces added:
+
+- Current view/scope, route, loading/fetch/render state, auth block state, last successful load summaries, lifecycle state, and wrapper recovery state.
+- Semantic rendered review snapshot of the active view, including sections, cards, rows, badges, notices, warnings, caveats, empty states, truncation, raw-ID effects, ordering/grouping, and prominence/visibility metadata where available.
+- Sanitized active-scope payload summary with root fields, collection field presence, and sanitized payload inspection.
+- Privacy/masking diagnostics showing mask token counts, backend-owned reason labels, and masked locations without exposing original masked values.
+- Fixed-size runtime event ring buffer for mount/recovery/fetch/render/auth/export events.
+
+Export/review formats added:
+
+- Structured `developer_workbench_bundle/v1` JSON for current-view AI/UI review.
+- Rendered text transcript generated from the same semantic snapshot.
+- Sanitized active payload copy.
+- Richer local JSON bundle download.
+- Every export includes provenance: `current_live_rendered_state` for live mounted rendered state, or `best_effort_active_view_snapshot` when built from cached active-view state during partial mount/recovery.
+- Exports include timestamp, active scope, route summary, raw-ID mode, Workbench enabled state, and lifecycle/auth caveats when present.
+
+AI/UI review value:
+
+- The review snapshot captures user-facing meaning instead of only backend payloads.
+- Prominence, tone, visibility, ordering, grouping, notices, caveats, and truncation help later review whether a beginner would understand the page, whether warnings are visible enough, and whether the UI is creating clarity or overload.
+- Transcript export gives a readable artifact suitable for chat/issues when screenshots are not enough or not desired.
+
+Privacy/path discipline:
+
+- Workbench metadata is safe and admin-only.
+- Payload inspection is sanitized client-side before display/export.
+- Runtime log entries are compact metadata only and bounded to a fixed-size ring buffer.
+- Log entries do not store full payload copies.
+- Sensitive-key names are redacted, absolute-looking paths are masked, and privacy diagnostics report mask tokens/reasons/locations without original masked values.
+- No remote upload, Sentry/GitHub submission, or background sending was added.
+
+Deferred intentionally:
+
+- Real Dev Actions and any write-capable developer tooling.
+- HACS/update-channel/distribution work.
+- New explorer scopes, new backend source readers, parser expansion, graph visualization, screenshots, remote diagnostics, and persistent settings beyond the Workbench enabled flag.
+- Live Home Assistant confirmation of narrow layout, export copying, and diagnostic usefulness remains separate from this sandbox pass.
+
+### 0.4.0 validation results
+
+Branch check:
+
+```powershell
+Get-Content -Path .git\HEAD
+```
+
+Result:
+
+```text
+ref: refs/heads/developer-workbench-foundation
+```
+
+Backend syntax:
+
+```powershell
+python -c "import ast, pathlib; files=[pathlib.Path(p) for p in ['custom_components/ha_context_explorer_probe/__init__.py','custom_components/ha_context_explorer_probe/api.py','custom_components/ha_context_explorer_probe/logic.py','custom_components/ha_context_explorer_probe/privacy.py','custom_components/ha_context_explorer_probe/config_flow.py','custom_components/ha_context_explorer_probe/const.py','custom_components/ha_context_explorer_probe/workbench.py']]; [ast.parse(path.read_text(encoding='utf-8'), filename=str(path)) for path in files]; print('AST syntax OK for', len(files), 'backend files')"
+```
+
+Result:
+
+```text
+AST syntax OK for 7 backend files
+```
+
+Manifest JSON:
+
+```powershell
+python -m json.tool custom_components\ha_context_explorer_probe\manifest.json
+```
+
+Result:
+
+```text
+manifest JSON parsed successfully
+```
+
+Frontend syntax:
+
+```powershell
+& 'C:\Users\daniel\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --check custom_components\ha_context_explorer_probe\www\app.js
+& 'C:\Users\daniel\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --check custom_components\ha_context_explorer_probe\www\workbench.js
+```
+
+Result:
+
+```text
+No syntax errors reported.
+```
+
+Auth/admin and route registration:
+
+```powershell
+Select-String -Path custom_components\ha_context_explorer_probe\api.py -Pattern 'requires_auth = True|_require_admin|is_admin|Unauthorized|workbench|def post|def put|def patch|def delete'
+```
+
+Result:
+
+```text
+The shared ProbeDataView path still sets requires_auth = True, calls _require_admin(), checks is_admin, and registers workbench through the same GET-only view path. No post/put/patch/delete methods were found.
+```
+
+Safety scan:
+
+```powershell
+Select-String -Path custom_components\ha_context_explorer_probe\**\* -Pattern 'def post|def put|def patch|def delete|async def post|async def put|async def patch|async def delete|hass\.services\.async_call|async_register_service|register_admin_service|\.async_set\(|\.storage|secrets\.yaml|hassTokens|sessionStorage|Authorization|Bearer|fetch\(' -CaseSensitive:$false
+```
+
+Result:
+
+```text
+Only the sanitizer's sensitive-key regex contains the literal words authorization/bearer. No service calls, mutation handlers, .storage access, secrets.yaml access, token scraping, sessionStorage, Authorization/Bearer usage, or fetch() calls were found.
+```
+
+Browser-local persistence review:
+
+```powershell
+Select-String -Path custom_components\ha_context_explorer_probe\www\app.js,custom_components\ha_context_explorer_probe\www\workbench.js -Pattern 'localStorage|sessionStorage|WORKBENCH_EVENT_LIMIT|current_live_rendered_state|best_effort_active_view_snapshot'
+```
+
+Result:
+
+```text
+localStorage is confined to the Workbench enabled flag helper in workbench.js. sessionStorage is not used. Runtime event history is bounded by WORKBENCH_EVENT_LIMIT. Both export provenance values are present.
+```
+
+Logic source-reader guard:
+
+```powershell
+Select-String -Path custom_components\ha_context_explorer_probe\logic.py -Pattern 'automations.yaml|scripts.yaml|async_add_executor_job|read_text|\.storage|secrets\.yaml|packages|dashboard' -CaseSensitive:$false
+```
+
+Result:
+
+```text
+The existing logic starter still reads only canonical automations.yaml and scripts.yaml through async_add_executor_job. Packages and dashboards appear only as unsupported source_coverage entries. No .storage or secrets.yaml access was added.
+```
+
+Reference-data safety:
+
+```powershell
+Select-String -Path custom_components\ha_context_explorer_probe\**\* -Pattern '_local_reference|probe_input' -CaseSensitive:$false
+Select-String -Path README.md,CHANGELOG.md,docs\ai\*.md -Pattern 'probe_input' -CaseSensitive:$false
+Select-String -Path .gitignore -Pattern '_local_reference'
+```
+
+Result:
+
+```text
+No implementation file references _local_reference or probe_input. No README/changelog/AI doc references probe_input. .gitignore still lists _local_reference/.
+```
+
+Runtime caveat:
+
+- This sandbox cannot run a full Home Assistant frontend session, so desktop/narrow Workbench layout, copy/download behavior, and live diagnostic usefulness still need user runtime confirmation.
+- The implementation keeps all diagnostics and exports local to the browser unless a user manually copies or downloads them.
+
 ## 0.3.3 empty-wrapper lifecycle recovery review
 
 Task: focused follow-up for the live-observed case where Home Assistant leaves `ha-panel-custom` mounted but empty, with no `ha-context-explorer-probe-panel` child in the active DOM.
@@ -855,7 +1138,7 @@ No matches.
 
 ## Current Scope Summary
 
-Phase 2 implemented HA Context Explorer Probe `0.2.0` as the first real read-only explorer slice. Version `0.3.3` is the current branch state and keeps the `0.3.0` logic/reference starter slice while adding deeper native-panel lifecycle and empty-wrapper recovery hardening on top of the 0.2.x foundation.
+Phase 2 implemented HA Context Explorer `0.2.0` as the first real read-only explorer slice. Version `0.4.1` is the current branch state: it keeps the `0.3.0` logic/reference starter slice, includes the `0.3.1` through `0.3.3` native-panel lifecycle and empty-wrapper recovery hardening, adds the first `0.4.0` Developer Workbench foundation, and applies a small live-test polish pass for Workbench copy/runtime-log usability on top of the 0.2.x foundation.
 
 Implemented real data scopes:
 
@@ -879,6 +1162,8 @@ Still not implemented:
 - graph visualization or execution tracing
 - write settings or saved preferences
 - mutation features
+- real Dev Actions or write-capable developer tools
+- remote diagnostic upload or background sending
 
 ## Safety review
 
@@ -888,7 +1173,8 @@ Result: pass with live-runtime caveat.
 - JSON data endpoints set `requires_auth = True`.
 - JSON data endpoints explicitly require `request["hass_user"].is_admin`.
 - The native custom panel loads the originally implemented protected scopes through Home Assistant's frontend auth context in the user's tested runtime.
-- The 0.3.0 logic slice is implemented as a protected read-only endpoint and still needs live Home Assistant runtime confirmation.
+- The 0.3.0 logic slice is implemented as a protected read-only endpoint with source coverage honesty.
+- The 0.4.x Workbench endpoint is protected and returns safe metadata only.
 - No service calls were added.
 - No service registration was added.
 - No POST / PUT / PATCH / DELETE handlers were added.
@@ -896,6 +1182,7 @@ Result: pass with live-runtime caveat.
 - No `.storage` reads or writes were added.
 - No secret access was added.
 - No restart or supervisor controls were added.
+- No write-capable Dev Actions were added.
 
 ## Privacy review
 
@@ -1002,7 +1289,7 @@ At the time of the original Phase-2 review, `0.2.0` was confirmed in:
 - `CHANGELOG.md`
 - `docs/ai/AI_CURRENT_STATE.md`
 
-Current version alignment is covered by the newer 0.3.3 review section above. Historical `0.1.1`, `0.1.0`, and prior corrective-version references remain only in changelog/change-history/review context.
+Current version alignment is covered by the newer 0.4.1 review section above. Historical `0.1.1`, `0.1.0`, and prior corrective-version references remain only in changelog/change-history/review context.
 
 ### Historical Home Assistant runtime caveat
 

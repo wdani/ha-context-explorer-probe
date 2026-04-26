@@ -1,7 +1,7 @@
 {
   "domain": "ha_context_explorer_probe",
-  "name": "HA Context Explorer Probe",
-  "version": "0.3.3",
+  "name": "HA Context Explorer",
+  "version": "0.4.1",
   "documentation": "https://github.com/wdani/ha-context-explorer-probe",
   "issue_tracker": "https://github.com/wdani/ha-context-explorer-probe/issues",
   "codeowners": ["@wdani"],

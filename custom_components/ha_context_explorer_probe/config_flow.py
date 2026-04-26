@@ -1,4 +1,4 @@
-"""Config flow for HA Context Explorer Probe."""
+"""Config flow for HA Context Explorer."""
 from __future__ import annotations
 
 from homeassistant import config_entries
@@ -16,4 +16,4 @@ class HAContextExplorerProbeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN)
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
 
-        return self.async_create_entry(title="Context Explorer Probe", data={})
+        return self.async_create_entry(title="HA Context Explorer", data={})

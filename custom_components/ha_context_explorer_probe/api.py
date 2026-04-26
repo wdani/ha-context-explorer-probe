@@ -1,4 +1,4 @@
-"""Read-only HTTP API for HA Context Explorer Probe."""
+"""Read-only HTTP API for HA Context Explorer."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,6 +18,7 @@ from homeassistant.helpers import entity_registry as er
 from .const import DOMAIN, VERSION
 from .logic import build_logic_payload
 from .privacy import mask_value
+from .workbench import build_workbench_payload
 
 API_BASE = f"/api/{DOMAIN}"
 
@@ -81,7 +82,7 @@ class ProbeSnapshot:
 
 
 class ProbeDataView(HomeAssistantView):
-    """Authenticated admin-only GET endpoint for one probe scope."""
+    """Authenticated admin-only GET endpoint for one explorer scope."""
 
     requires_auth = True
 
@@ -114,6 +115,7 @@ def register_api_views(hass: HomeAssistant) -> None:
         ("integrations", build_integrations_payload),
         ("relationships", build_relationships_payload),
         ("logic", build_logic_payload),
+        ("workbench", lambda hass: build_workbench_payload()),
     )
     for scope, builder in views:
         hass.http.register_view(ProbeDataView(scope, builder))
@@ -141,7 +143,7 @@ async def build_overview_payload(hass: HomeAssistant) -> dict[str, Any]:
     return {
         "version": VERSION,
         "domain": DOMAIN,
-        "mode": "read_only_probe",
+        "mode": "read_only_explorer",
         "flags": READ_ONLY_FLAGS,
         "counts": {
             "entities": len(entity_items),

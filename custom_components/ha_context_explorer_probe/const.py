@@ -1,7 +1,7 @@
-"""Constants for HA Context Explorer Probe."""
+"""Constants for HA Context Explorer."""
 
 DOMAIN = "ha_context_explorer_probe"
-NAME = "Context Explorer Probe"
+NAME = "HA Context Explorer"
 PANEL_ELEMENT = "ha-context-explorer-probe-panel"
-VERSION = "0.3.3"
+VERSION = "0.4.1"
 STATIC_URL = f"/local/{DOMAIN}"

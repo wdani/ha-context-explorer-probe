@@ -1,4 +1,4 @@
-"""Read-only logic/reference shaping for HA Context Explorer Probe."""
+"""Read-only logic/reference shaping for HA Context Explorer."""
 from __future__ import annotations
 
 import asyncio
