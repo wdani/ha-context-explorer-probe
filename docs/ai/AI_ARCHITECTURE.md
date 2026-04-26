@@ -64,3 +64,9 @@ Runtime diagnostics use a fixed-size ring buffer. Log entries are compact metada
 ## Capability model
 
 Implemented scopes are exposed explicitly. Future scopes are reported as unavailable/not implemented rather than faked.
+
+## Distribution posture
+
+The repository keeps the standard custom integration layout under `custom_components/ha_context_explorer_probe/` and includes root HACS metadata as a custom-repository readiness starter. The runtime integration domain remains `ha_context_explorer_probe` for compatibility, while visible docs and UI use HA Context Explorer.
+
+The intended future update path is HACS custom repository usage backed by GitHub releases with version tags. This is not yet a full release pipeline, default-store submission, or guarantee of complete HACS compliance.
