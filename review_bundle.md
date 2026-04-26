@@ -1,20 +1,22 @@
 # Review Bundle
 
-## Distribution/update-readiness starter and finalize review
+## Distribution/branding/HACS validation review
 
-Task: first small HACS custom repository, repository presentation, and release/update documentation readiness pass after the merged 0.4.1 Developer Workbench foundation.
+Task: combined HACS custom repository, provisional branding, local integration brand asset, and release/update documentation readiness pass after the merged 0.4.1 Developer Workbench foundation.
 
-Result: minimal metadata, repository presentation, and documentation cleanup only. No runtime behavior changed and the integration version remains `0.4.1`.
+Result: minimal metadata, provisional brand assets, repository presentation, and documentation cleanup only. No Explorer data/runtime behavior changed and the integration version remains `0.4.1`.
 
-Repository/distribution readiness issues found:
+Repository/distribution readiness findings addressed across the distribution passes:
 
 - Repository structure already matches the basic HACS integration layout: one integration under `custom_components/`.
 - The integration manifest already had the required HACS integration keys: `domain`, `documentation`, `issue_tracker`, `codeowners`, `name`, and `version`.
-- The manifest still pointed documentation and issue tracker URLs at the old `ha-context-explorer-probe` repository.
-- No root `hacs.json` existed, even though current HACS docs describe it as the root metadata file for HACS UI/path behavior.
+- The manifest previously pointed documentation and issue tracker URLs at the old `ha-context-explorer-probe` repository.
+- Root `hacs.json` metadata was previously missing.
 - No `info.md` exists, so rendering README through `hacs.json` is the smallest reasonable starter metadata choice.
 - A provisional project logo exists at `docs/assets/ha-context-explorer-logo.png`.
-- No complete Home Assistant/HACS brand asset set, HACS validation action, Hassfest action, GitHub release, or tag was added in this task.
+- Current Home Assistant developer docs describe local custom integration brand images under `custom_components/<domain>/brand/` for Home Assistant 2026.3 and newer.
+- Current HACS integration docs describe brand assets as part of integration repository readiness and GitHub releases as preferred but optional.
+- No HACS validation action, Hassfest action, Home Assistant Brands submission, GitHub release, or tag was added in this task.
 
 What changed:
 
@@ -24,6 +26,10 @@ What changed:
 - Updated `manifest.json` documentation and issue tracker URLs to `https://github.com/wdani/ha-context-explorer`.
 - Clarified README manual install, HACS custom repository test path, manual update, and future GitHub-release-based update direction.
 - Added the provisional README logo from `docs/assets/ha-context-explorer-logo.png`.
+- Added a derived docs icon at `docs/assets/ha-context-explorer-icon.png`.
+- Added provisional local integration brand assets:
+  - `custom_components/ha_context_explorer_probe/brand/icon.png`
+  - `custom_components/ha_context_explorer_probe/brand/logo.png`
 - Added a HACS custom repository test checklist.
 - Added a future release/tag workflow checklist.
 - Updated changelog and AI docs to record this as a distribution-readiness starter.
@@ -34,14 +40,15 @@ HACS readiness status:
 - Full HACS readiness is still not claimed.
 - Current uncertainty/reminders:
   - HACS docs require/expect a known repository structure and root `hacs.json`.
-  - Current HACS integration docs also describe brand assets as required; this task added repository presentation logo usage, but did not validate a complete integration brand asset set.
+  - Current HACS integration docs also describe brand assets as required; this task adds local brand assets, but does not validate HACS or Home Assistant UI rendering in every target runtime.
+  - Home Assistant 2026.3 and newer can use local custom integration brand assets from the integration `brand/` directory; older behavior may still depend on Home Assistant Brands or HACS-specific presentation.
   - GitHub releases are preferred but not required; this task did not create a release or tag.
   - Default-store submission has additional requirements and is explicitly out of scope.
 
 Version decision:
 
 - No version bump was made.
-- Rationale: changes are docs/repository metadata only and do not alter Home Assistant runtime behavior, endpoint behavior, frontend behavior, data shaping, or security model.
+- Rationale: changes are docs/repository metadata and provisional brand assets only. They do not alter endpoint behavior, frontend application behavior, data shaping, or security model.
 
 ### Distribution starter validation results
 
@@ -54,7 +61,7 @@ Get-Content -Path .git\HEAD
 Result:
 
 ```text
-ref: refs/heads/distribution-release-hacs-polish
+ref: refs/heads/distribution-brand-hacs-validation
 ```
 
 Repository structure:
@@ -82,12 +89,28 @@ Result:
 hacs.json and manifest.json parse successfully.
 ```
 
-Logo asset:
+Logo and brand assets:
+
+```powershell
+Add-Type -AssemblyName System.Drawing
+@(
+  'docs/assets/ha-context-explorer-logo.png',
+  'docs/assets/ha-context-explorer-icon.png',
+  'custom_components/ha_context_explorer_probe/brand/icon.png',
+  'custom_components/ha_context_explorer_probe/brand/logo.png'
+) | ForEach-Object {
+  $img=[System.Drawing.Image]::FromFile($_)
+  try { "$_ - $($img.Width)x$($img.Height)" } finally { $img.Dispose() }
+}
+```
 
 Result:
 
 ```text
 docs/assets/ha-context-explorer-logo.png - 1024x1024
+docs/assets/ha-context-explorer-icon.png - 256x256
+custom_components/ha_context_explorer_probe/brand/icon.png - 256x256
+custom_components/ha_context_explorer_probe/brand/logo.png - 1024x1024
 ```
 
 Version alignment:

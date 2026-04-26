@@ -6,8 +6,10 @@
 - Updated integration documentation and issue tracker metadata to point at `wdani/ha-context-explorer`.
 - Clarified README installation and update paths for manual installs, HACS custom repository testing, and future release-based updates.
 - Added the provisional HA Context Explorer logo to the README from `docs/assets/ha-context-explorer-logo.png`.
+- Added derived provisional icon/logo assets for repo-local documentation and Home Assistant 2026.3+ local custom integration brand discovery.
 - Added manual release/tag workflow guidance and a HACS custom repository test checklist.
-- Kept integration version at `0.4.1` because no runtime behavior changed.
+- Refined HACS custom repository validation guidance to distinguish README/logo presentation, local integration brand assets, Home Assistant Brands, default-store submission, and future release/tag update testing.
+- Kept integration version at `0.4.1` because no Explorer runtime behavior changed.
 
 ## 0.4.1
 

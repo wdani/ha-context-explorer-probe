@@ -31,7 +31,7 @@
 - Native custom panel lifecycle and empty-wrapper recovery hardening for reconnect/remount/internal navigation/visibility-return cases
 - Developer Workbench foundation with admin-only enablement, browser-local enabled-state persistence, Review/Payload/Runtime/Privacy/Actions panes, semantic rendered review exports, transcript exports, sanitized payload inspection, privacy/masking diagnostics, bounded runtime event log, and a placeholder Dev Actions plane
 - Live-test Workbench polish for clipboard-unavailable handling, aggregated repeated render events, and a subtler admin-only Workbench toggle icon
-- Minimal HACS custom repository starter metadata, provisional README logo, release checklist, HACS custom repository test checklist, and clearer manual/HACS/update documentation
+- Minimal HACS custom repository starter metadata, provisional README logo and icon assets, local integration brand assets, release checklist, HACS custom repository test checklist, and clearer manual/HACS/update documentation
 - Documentation and review baseline
 
 ## Confirmed Runtime State
@@ -50,7 +50,7 @@ Version `0.4.0` adds the first Developer Workbench foundation. It is a separate 
 
 Version `0.4.1` is a small live-test polish pass on that foundation. Clipboard copy actions are disabled with a calm central note when the Clipboard API is unavailable, Download JSON remains available, repeated `scope_rendered` runtime events are aggregated, and the Workbench toggle uses a subtle icon. It does not change backend scope, endpoint auth, exports, persistence, or the Dev Actions placeholder contract.
 
-The distribution-readiness starter adds root HACS metadata, a provisional README logo, release/tag workflow guidance, a HACS custom repository test checklist, and documentation cleanup without changing runtime behavior or bumping the integration version. It prepares for HACS custom repository testing and a future GitHub release-based update path, but does not create a release, tag, release automation, complete brand asset set, or default-store submission.
+The distribution-readiness starter adds root HACS metadata, a provisional README logo, a derived docs icon, local integration `brand/icon.png` and `brand/logo.png` assets, release/tag workflow guidance, a HACS custom repository test checklist, and documentation cleanup without changing Explorer runtime behavior or bumping the integration version. It prepares for HACS custom repository testing, Home Assistant 2026.3+ local custom integration brand discovery, and a future GitHub release-based update path, but does not create a release, tag, release automation, Home Assistant Brands submission, default-store submission, or guarantee icon display across all Home Assistant/HACS versions.
 
 ## Not implemented
 
@@ -66,7 +66,7 @@ The distribution-readiness starter adds root HACS metadata, a provisional README
 - Write settings or saved preferences
 - Any mutation feature
 - Real Dev Actions or write-capable developer tools
-- Remote diagnostic upload, Sentry submission, GitHub submission, screenshots, official/default HACS submission, full release automation, or completed update-channel work
+- Remote diagnostic upload, Sentry submission, GitHub submission, screenshots, official/default HACS submission, Home Assistant Brands submission, full release automation, or completed update-channel work
 
 ## Remaining Validation Caveat
 

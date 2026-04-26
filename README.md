@@ -117,13 +117,15 @@ Current distribution posture:
 
 - manual installation remains supported
 - HACS custom repository metadata is present as a starter step
+- provisional local brand assets are present for repository and integration presentation
 - release-based updates with Git tags are the intended future direction
-- no GitHub release or tag has been created by this documentation step
+- no GitHub release or tag has been created by this distribution step
 - this is not a HACS default-store submission
-- an initial placeholder project logo is present for repository presentation
-- full HACS compliance is not claimed yet; integration brand assets, validation automation, and release publishing still need a later pass
+- full HACS compliance is not claimed yet; live HACS custom repository validation, validation automation, and release publishing still need a later pass
 
-The logo at `docs/assets/ha-context-explorer-logo.png` is provisional placeholder branding for repository presentation. It is not a complete Home Assistant/HACS brand asset set.
+The logo at `docs/assets/ha-context-explorer-logo.png` is provisional placeholder branding for repository presentation. A smaller derived icon is also available at `docs/assets/ha-context-explorer-icon.png`.
+
+The integration includes provisional local brand images at `custom_components/ha_context_explorer_probe/brand/icon.png` and `custom_components/ha_context_explorer_probe/brand/logo.png`. Home Assistant 2026.3 and newer can use local custom integration brand images from this `brand/` directory. Older Home Assistant versions and some HACS presentation paths may still depend on Home Assistant Brands or HACS behavior, so icon display must be validated in the target runtime before claiming it works everywhere.
 
 The integration still uses the internal compatibility domain and folder name `ha_context_explorer_probe`. That is expected for now; the user-facing name is **HA Context Explorer**.
 
@@ -164,15 +166,18 @@ Use this as a manual validation checklist before presenting HACS as a comfortabl
 - Add `https://github.com/wdani/ha-context-explorer` as a HACS custom repository.
 - Select category **Integration**.
 - Confirm HACS accepts the repository metadata.
+- Confirm HACS displays the README content and provisional project logo as expected.
 - Install the integration through HACS.
 - Restart Home Assistant if HACS or Home Assistant asks for it.
 - Confirm **HA Context Explorer** appears in **Settings -> Devices & Services**.
 - Add the integration and confirm the sidebar panel appears.
 - Confirm the panel reports the expected version.
+- Confirm whether the local integration icon/logo appear in the relevant Home Assistant UI for the tested Home Assistant version.
 - Confirm Overview and at least one additional protected scope load for an admin user.
 - Confirm Developer Workbench remains admin-only and local-only.
 - Check Home Assistant logs for import, frontend asset, auth, or panel registration errors.
 - Check whether HACS reports update information as expected for the current branch or future release.
+- After a future GitHub Release exists, confirm HACS detects update availability from the release/tag path.
 
 This checklist is for custom repository testing only. It is not a HACS default-store submission checklist.
 
@@ -206,7 +211,8 @@ Not done yet:
 - no tag created
 - no release automation added
 - no HACS default-store submission
-- no complete Home Assistant/HACS brand asset validation
+- no Home Assistant Brands submission
+- no complete Home Assistant/HACS brand asset validation across supported runtime versions
 - no claim of full HACS compliance across all current checks
 
 ## Validation status

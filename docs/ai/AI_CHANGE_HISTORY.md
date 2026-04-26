@@ -8,17 +8,21 @@ Key changes:
 
 - Added root `hacs.json` with the HA Context Explorer display name and README rendering.
 - Added the provisional HA Context Explorer logo to the README from `docs/assets/ha-context-explorer-logo.png`.
+- Added a derived docs icon and local custom integration brand assets from the existing provisional logo:
+  - `docs/assets/ha-context-explorer-icon.png`
+  - `custom_components/ha_context_explorer_probe/brand/icon.png`
+  - `custom_components/ha_context_explorer_probe/brand/logo.png`
 - Updated integration manifest documentation and issue tracker URLs to `wdani/ha-context-explorer`.
 - Clarified README manual install, HACS custom repository test path, manual updates, and future GitHub-release-based update direction.
 - Added a manual HACS custom repository test checklist.
 - Added a future release/tag workflow checklist.
-- Recorded that HACS readiness is a starter posture, not full default-store or release-channel completion.
+- Recorded that HACS readiness is a starter posture, not full default-store, Home Assistant Brands, guaranteed icon-display, or release-channel completion.
 
 Important boundaries kept:
 
 - No runtime code behavior changed.
 - No version bump was made; the integration remains `0.4.1`.
-- No GitHub release, tag, release automation, complete HACS brand asset validation, HACS default-store submission, backend source expansion, UI feature, Dev Actions implementation, telemetry, or write behavior was added.
+- No GitHub release, tag, release automation, complete HACS brand asset validation across target runtimes, Home Assistant Brands submission, HACS default-store submission, backend source expansion, UI feature, Dev Actions implementation, telemetry, or write behavior was added.
 
 ## 0.4.1
 

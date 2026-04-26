@@ -71,4 +71,4 @@ The repository keeps the standard custom integration layout under `custom_compon
 
 The intended future update path is HACS custom repository usage backed by GitHub releases with version tags. This is not yet a full release pipeline, default-store submission, or guarantee of complete HACS compliance.
 
-Repository presentation currently uses a provisional logo at `docs/assets/ha-context-explorer-logo.png`. This is not yet a complete Home Assistant/HACS brand asset set and should not be treated as final branding.
+Repository presentation currently uses a provisional logo at `docs/assets/ha-context-explorer-logo.png` and a derived icon at `docs/assets/ha-context-explorer-icon.png`. The custom integration also includes provisional local brand assets at `custom_components/ha_context_explorer_probe/brand/icon.png` and `custom_components/ha_context_explorer_probe/brand/logo.png` for Home Assistant 2026.3+ local custom integration brand discovery. These assets are not final branding, not a Home Assistant Brands submission, and not a guarantee that every Home Assistant or HACS runtime will display the icon without live validation.
