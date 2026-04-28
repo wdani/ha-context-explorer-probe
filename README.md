@@ -133,6 +133,8 @@ The integration includes provisional local brand images at `custom_components/ha
 
 A small external Home Assistant Brands PR helper package is prepared under `docs/brands/home-assistant-brands/custom_integrations/ha_context_explorer/`. It contains `icon.png` and `icon@2x.png` for a future external `home-assistant/brands` PR. That external PR has not been created.
 
+The `0.5.0` GitHub Release draft text is prepared at `docs/releases/0.5.0.md`. No GitHub tag or Release has been created by this repository preparation step.
+
 The integration now uses the final internal domain and folder name `ha_context_explorer`. The old `ha_context_explorer_probe` domain remains historical only.
 
 ## Local reference material
@@ -222,18 +224,35 @@ This is an external follow-up for the central `home-assistant/brands` repository
 
 The intended update direction is HACS custom repository usage backed by GitHub releases with version tags. HACS can use the default branch when releases are not published, but release-based updates should provide a cleaner user experience once the project is ready. Tags alone are not treated here as the finished update channel; a future release should publish a proper GitHub release.
 
-Future release checklist:
+The chosen first release/tag name is `0.5.0`.
+
+Before release:
 
 - Confirm `main` is stable.
-- Decide whether the change affects runtime, install behavior, or only docs/metadata.
-- Bump the integration version only when the change justifies a user-visible release.
-- Update `CHANGELOG.md`.
-- Update `review_bundle.md` with validation results.
 - Confirm `custom_components/ha_context_explorer/manifest.json` and `const.py` agree on the version.
+- Confirm root `hacs.json` exists.
+- Confirm only `custom_components/ha_context_explorer/` exists under `custom_components/`.
+- Confirm README renders on GitHub and in HACS custom repository detail view.
+- Confirm local brand assets exist under `custom_components/ha_context_explorer/brand/`.
 - Run syntax, manifest, safety, and reference-data checks.
-- Create tag `v0.5.0` or `0.5.0` only after deciding the tag naming convention.
-- Create a GitHub Release from that tag with concise release notes.
-- Test HACS custom repository install/update behavior against the release.
+- Update `CHANGELOG.md` and `review_bundle.md` if release validation changes.
+
+Manual release action:
+
+1. Create tag `0.5.0`.
+2. Create a GitHub Release from tag `0.5.0`.
+3. Paste release notes from `docs/releases/0.5.0.md`.
+4. Publish the release.
+
+After release:
+
+1. Refresh HACS.
+2. Check installed/custom repository version behavior.
+3. Verify HACS can install or update from the release/default branch as expected.
+4. Restart Home Assistant if required.
+5. Confirm the panel path is `/ha_context_explorer`.
+6. Confirm HA Context Explorer reports version `0.5.0`.
+7. Confirm Home Assistant logs do not show old `/ha_context_explorer_probe` paths.
 
 Not done yet:
 

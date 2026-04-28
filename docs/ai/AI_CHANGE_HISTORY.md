@@ -9,12 +9,14 @@ Key changes:
 - Verified the active repository layout uses one integration under `custom_components/ha_context_explorer/`.
 - Added `custom_components/ha_context_explorer/brand/icon@2x.png` from the existing provisional project logo.
 - Prepared an external Home Assistant Brands helper package at `docs/brands/home-assistant-brands/custom_integrations/ha_context_explorer/` with `icon.png` and `icon@2x.png`.
+- Added `docs/releases/0.5.0.md` as the ready-to-paste GitHub Release draft for tag `0.5.0`.
+- Added `docs/brands/home-assistant-brands/PR_BODY.md` as the ready-to-copy external Home Assistant Brands PR body.
 - Updated README HACS custom repository testing, Home Assistant Brands follow-up, and release/tag workflow notes for the final `ha_context_explorer` domain.
 - Recorded that the HACS list/card icon remains pending until an external `home-assistant/brands` PR adds `custom_integrations/ha_context_explorer/icon.png`.
 
 Important boundaries kept:
 
-- No Explorer runtime behavior, Developer Workbench behavior, API path, auth/admin checks, service calls, mutation endpoints, `.storage` access, telemetry, release/tag creation, HACS default-store submission, or external Brands PR was added.
+- No Explorer runtime behavior, Developer Workbench behavior, API path, auth/admin checks, service calls, mutation endpoints, `.storage` access, telemetry, release/tag creation, GitHub Release creation, HACS default-store submission, or external Brands PR was added.
 - No version bump was made; the integration remains `0.5.0`.
 
 ## 0.5.0

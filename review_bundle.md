@@ -1,5 +1,101 @@
 # Review Bundle
 
+## 0.5.0 release / HACS / Brands readiness review
+
+Task: prepare the `0.5.0` release-readiness package, HACS custom repository validation instructions, and external Home Assistant Brands PR helper material for the final `ha_context_explorer` domain.
+
+Result: release and Brands PR copy/paste materials are prepared, HACS/release checklists now use tag `0.5.0`, and validation was refreshed. No runtime behavior changed. No GitHub tag, GitHub Release, HACS default-store submission, or external Home Assistant Brands PR was created.
+
+Release draft:
+
+- Added `docs/releases/0.5.0.md`.
+- Release title: `HA Context Explorer 0.5.0`.
+- Release/tag name: `0.5.0`.
+- Covers the final domain rename, breaking old-domain migration notes, native panel lifecycle hardening, Developer Workbench foundation, HACS custom repository metadata, local brand assets, Brands helper assets, and read-only safety model.
+- States that HACS default-store submission, external Brands completion, and release/update validation are not done yet.
+
+HACS custom repository validation updates:
+
+- README now separates manual install, old-domain migration, HACS custom repository install, HACS custom repository testing, GitHub Release/tag update detection, HACS default-store submission, and Home Assistant Brands icon follow-up.
+- The chosen tag convention is `0.5.0`.
+- Before-release, manual release-action, and after-release HACS validation checklists are documented.
+- HACS list/card icon remains pending until the external Home Assistant Brands path serves `ha_context_explorer` assets.
+
+Home Assistant Brands helper package:
+
+- Added `docs/brands/home-assistant-brands/PR_BODY.md`.
+- Target external repo: `home-assistant/brands`.
+- Target external folder: `custom_integrations/ha_context_explorer/`.
+- Prepared helper files:
+  - `docs/brands/home-assistant-brands/custom_integrations/ha_context_explorer/icon.png` - 256x256 PNG
+  - `docs/brands/home-assistant-brands/custom_integrations/ha_context_explorer/icon@2x.png` - 512x512 PNG
+- No `logo.png` is included because the current source asset is square; icon fallback remains the intended starting point unless Brands maintainers request a separate logo.
+
+Validation results:
+
+```powershell
+python -m json.tool hacs.json
+python -m json.tool custom_components\ha_context_explorer\manifest.json
+```
+
+Result:
+
+```text
+Both JSON files parse.
+```
+
+```powershell
+Get-ChildItem -Path custom_components -Directory | Select-Object -ExpandProperty Name
+```
+
+Result:
+
+```text
+ha_context_explorer
+```
+
+```powershell
+Select-String -Path custom_components\ha_context_explorer\const.py,custom_components\ha_context_explorer\manifest.json -Pattern '0\.5\.0'
+```
+
+Result:
+
+```text
+const.py and manifest.json both report 0.5.0.
+```
+
+```powershell
+<bundled python with Pillow> validate PNG dimensions
+```
+
+Result:
+
+```text
+custom_components\ha_context_explorer\brand\icon.png: 256x256 RGBA
+custom_components\ha_context_explorer\brand\icon@2x.png: 512x512 RGBA
+custom_components\ha_context_explorer\brand\logo.png: 1024x1024 RGBA
+docs\brands\home-assistant-brands\custom_integrations\ha_context_explorer\icon.png: 256x256 RGBA
+docs\brands\home-assistant-brands\custom_integrations\ha_context_explorer\icon@2x.png: 512x512 RGBA
+```
+
+Naming and safety scans:
+
+```powershell
+Get-ChildItem -Path custom_components\ha_context_explorer -Recurse -File | Select-String -Pattern 'ha_context_explorer_probe|ha-context-explorer-probe|/local/ha_context_explorer_probe|/api/ha_context_explorer_probe'
+Select-String -Path README.md,CHANGELOG.md,docs\ai\*.md,docs\releases\*.md,docs\brands\home-assistant-brands\*.md -Pattern '<old probe Brands/API/static paths or disallowed release-tag convention>'
+Get-ChildItem -Path README.md,CHANGELOG.md,review_bundle.md,docs -Recurse -File | Select-String -Pattern '<absolute local path patterns>'
+Get-ChildItem -Path custom_components\ha_context_explorer -Recurse -File | Select-String -Pattern 'def (post|put|patch|delete)|async def (post|put|patch|delete)|services\.async_call|async_register|register_service|\.storage|secrets\.yaml|Authorization|Bearer|telemetry|Sentry|sentry|fetch\('
+```
+
+Result:
+
+```text
+No active integration source uses old probe runtime/API/static/custom-element paths.
+No non-historical current HACS/Brands/release instruction uses the old probe Brands/API/static path or the disallowed tag-prefix convention.
+No absolute local paths were found in README, changelog, review bundle, or docs after cleanup.
+Only expected static path/panel registration calls and the existing Developer Workbench sanitizer regex matched the safety scan. No mutation handlers, service calls, .storage access, secrets.yaml access, telemetry/upload, persistent setting additions, or write-capable Dev Actions were found.
+```
+
 ## Post-rename Brands/HACS readiness review
 
 Task: distribution/branding/HACS validation after the merged `0.5.0` domain rename to `ha_context_explorer`.
@@ -546,8 +642,8 @@ manifest JSON parsed successfully
 Frontend syntax:
 
 ```powershell
-& 'C:\Users\daniel\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --check custom_components\ha_context_explorer_probe\www\app.js
-& 'C:\Users\daniel\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --check custom_components\ha_context_explorer_probe\www\workbench.js
+& '<bundled Node.js>' --check custom_components\ha_context_explorer_probe\www\app.js
+& '<bundled Node.js>' --check custom_components\ha_context_explorer_probe\www\workbench.js
 ```
 
 Result:
@@ -690,8 +786,8 @@ manifest JSON parsed successfully
 Frontend syntax:
 
 ```powershell
-& 'C:\Users\daniel\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --check custom_components\ha_context_explorer_probe\www\app.js
-& 'C:\Users\daniel\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --check custom_components\ha_context_explorer_probe\www\workbench.js
+& '<bundled Node.js>' --check custom_components\ha_context_explorer_probe\www\app.js
+& '<bundled Node.js>' --check custom_components\ha_context_explorer_probe\www\workbench.js
 ```
 
 Result:
@@ -833,7 +929,7 @@ manifest JSON OK
 Frontend syntax check:
 
 ```powershell
-& 'C:\Users\daniel\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --check custom_components\ha_context_explorer_probe\www\app.js
+& '<bundled Node.js>' --check custom_components\ha_context_explorer_probe\www\app.js
 ```
 
 Result:
@@ -939,7 +1035,7 @@ manifest JSON OK
 Frontend syntax check:
 
 ```powershell
-& 'C:\Users\daniel\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --check custom_components\ha_context_explorer_probe\www\app.js
+& '<bundled Node.js>' --check custom_components\ha_context_explorer_probe\www\app.js
 ```
 
 Result:

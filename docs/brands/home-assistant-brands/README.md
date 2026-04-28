@@ -14,6 +14,7 @@ Prepared files:
 
 - `custom_integrations/ha_context_explorer/icon.png` - 256x256 PNG
 - `custom_integrations/ha_context_explorer/icon@2x.png` - 512x512 PNG
+- `PR_BODY.md` - ready-to-copy external PR body
 
 Notes:
 
