@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-No unreleased changes.
+- Added post-rename HACS/Brands readiness documentation for the final `ha_context_explorer` domain.
+- Added a local integration `brand/icon@2x.png` asset derived from the provisional project logo.
+- Prepared an external Home Assistant Brands PR helper package under `docs/brands/home-assistant-brands/custom_integrations/ha_context_explorer/` with `icon.png` and `icon@2x.png`.
+- Updated HACS custom repository testing notes to use the new domain and to keep the HACS list/card icon pending until an external Home Assistant Brands PR exists.
+- Kept integration version at `0.5.0` because this is docs/assets/distribution-readiness work with no runtime behavior change.
 
 ## 0.5.0
 
