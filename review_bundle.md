@@ -1,5 +1,99 @@
 # Review Bundle
 
+## Post-rename Brands/HACS readiness review
+
+Task: distribution/branding/HACS validation after the merged `0.5.0` domain rename to `ha_context_explorer`.
+
+Result: repository metadata and docs now align around the final integration domain, a local `icon@2x.png` asset was added, and a small external Home Assistant Brands PR helper package was prepared. No Explorer runtime behavior changed and the integration version remains `0.5.0`.
+
+HACS readiness status after the rename:
+
+- Root `hacs.json` exists and renders the README for the custom repository.
+- The repository contains one integration under `custom_components/ha_context_explorer/`.
+- `custom_components/ha_context_explorer/manifest.json` uses domain `ha_context_explorer`, version `0.5.0`, and repository URLs under `https://github.com/wdani/ha-context-explorer`.
+- Local integration brand assets exist under `custom_components/ha_context_explorer/brand/`.
+- HACS custom repository readiness is improved, but this is not a HACS default-store submission and not a claim of full HACS compliance across all checks.
+
+Local integration brand assets:
+
+- `custom_components/ha_context_explorer/brand/icon.png` - 256x256 PNG
+- `custom_components/ha_context_explorer/brand/icon@2x.png` - 512x512 PNG
+- `custom_components/ha_context_explorer/brand/logo.png` - 1024x1024 PNG
+
+External Home Assistant Brands helper package prepared:
+
+- `docs/brands/home-assistant-brands/custom_integrations/ha_context_explorer/icon.png` - 256x256 PNG
+- `docs/brands/home-assistant-brands/custom_integrations/ha_context_explorer/icon@2x.png` - 512x512 PNG
+- `docs/brands/home-assistant-brands/README.md`
+
+HACS list/card icon status:
+
+- Local Home Assistant integration icon display can use local brand assets in supported Home Assistant versions.
+- HACS README/detail presentation can render the README logo through the raw GitHub image URL.
+- HACS list/card icon remains pending until the external Home Assistant Brands path `custom_integrations/ha_context_explorer/icon.png` exists and `https://brands.home-assistant.io/_/ha_context_explorer/icon.png` returns the custom icon after merge/cache expiry.
+- No external Home Assistant Brands PR was created in this task.
+
+Release/tag workflow status:
+
+- README now keeps the next manual release path aligned with `0.5.0`.
+- No GitHub tag was created.
+- No GitHub Release was created.
+- No release automation was added.
+
+Validation results:
+
+```powershell
+python -m json.tool hacs.json
+python -m json.tool custom_components\ha_context_explorer\manifest.json
+```
+
+Result:
+
+```text
+Both JSON files parse.
+```
+
+```powershell
+Get-ChildItem -Path custom_components -Directory | Select-Object -ExpandProperty Name
+```
+
+Result:
+
+```text
+ha_context_explorer
+```
+
+```powershell
+Select-String -Path custom_components\ha_context_explorer\const.py,custom_components\ha_context_explorer\manifest.json -Pattern '0\.5\.0'
+```
+
+Result:
+
+```text
+const.py and manifest.json both report 0.5.0.
+```
+
+```powershell
+<bundled python with Pillow> validate PNG dimensions
+```
+
+Result:
+
+```text
+custom_components\ha_context_explorer\brand\icon.png: 256x256
+custom_components\ha_context_explorer\brand\icon@2x.png: 512x512
+custom_components\ha_context_explorer\brand\logo.png: 1024x1024
+docs\brands\home-assistant-brands\custom_integrations\ha_context_explorer\icon.png: 256x256
+docs\brands\home-assistant-brands\custom_integrations\ha_context_explorer\icon@2x.png: 512x512
+```
+
+Safety and current-domain checks:
+
+```text
+No current integration source path uses old runtime/API/static/custom-element probe paths.
+No mutation handlers, service calls, .storage access, secrets.yaml access, telemetry/upload, or write-capable Dev Actions were added.
+```
+
 ## 0.5.0 domain rename review
 
 Task: breaking early-project cleanup from the old probe-era integration domain to the final HA Context Explorer domain before external Home Assistant Brands work.

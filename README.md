@@ -118,7 +118,8 @@ Current distribution posture:
 - manual installation remains supported
 - HACS custom repository metadata is present as a starter step
 - provisional local brand assets are present for repository and integration presentation
-- live HACS testing confirmed the custom repository can be added and offered for download
+- post-rename repository structure uses one integration under `custom_components/ha_context_explorer/`
+- live HACS testing before the domain rename confirmed the custom repository can be added and offered for download; post-rename HACS retesting should use the checklist below
 - release-based updates with Git tags are the intended future direction
 - no GitHub release or tag has been created by this distribution step
 - this is not a HACS default-store submission
@@ -128,7 +129,9 @@ The logo at `docs/assets/ha-context-explorer-logo.png` is provisional placeholde
 
 The README logo uses an absolute raw GitHub URL because live HACS testing showed that HACS rendered the README text but did not resolve the previous relative image path.
 
-The integration includes provisional local brand images at `custom_components/ha_context_explorer/brand/icon.png` and `custom_components/ha_context_explorer/brand/logo.png`. Home Assistant 2026.3 and newer can use local custom integration brand images from this `brand/` directory. In the tested Home Assistant runtime, the integration icon appeared in Home Assistant's integration/repairs UI before the domain rename; retest is required for the new `ha_context_explorer` domain.
+The integration includes provisional local brand images at `custom_components/ha_context_explorer/brand/icon.png`, `custom_components/ha_context_explorer/brand/icon@2x.png`, and `custom_components/ha_context_explorer/brand/logo.png`. Home Assistant 2026.3 and newer can use local custom integration brand images from this `brand/` directory. In the tested Home Assistant runtime, the integration icon appeared in Home Assistant's integration/repairs UI before the domain rename; retest is required for the new `ha_context_explorer` domain.
+
+A small external Home Assistant Brands PR helper package is prepared under `docs/brands/home-assistant-brands/custom_integrations/ha_context_explorer/`. It contains `icon.png` and `icon@2x.png` for a future external `home-assistant/brands` PR. That external PR has not been created.
 
 The integration now uses the final internal domain and folder name `ha_context_explorer`. The old `ha_context_explorer_probe` domain remains historical only.
 
@@ -177,24 +180,20 @@ If the integration does not appear after installation, restart Home Assistant an
 
 Use this as a manual validation checklist before presenting HACS as a comfortable install path:
 
-- Add `https://github.com/wdani/ha-context-explorer` as a HACS custom repository.
-- Select category **Integration**.
-- Confirm HACS accepts the repository metadata. Current live result: accepted.
-- Confirm HACS shows the repository as available for download. Current live result: available.
-- Confirm HACS displays the README content and provisional project logo as expected. Current live result: README text renders; the relative README logo was broken before switching to the raw GitHub URL.
-- Check whether the HACS list/card icon appears. Current live result before the `0.5.0` domain rename: HACS requested the old central Brands URL and still showed "icon not available"; this remains pending validation for the new domain.
-- Install or update the integration through HACS.
-- Restart Home Assistant if HACS or Home Assistant asks for it.
-- Confirm **HA Context Explorer** appears in **Settings -> Devices & Services**.
-- Add the integration and confirm the sidebar panel appears.
-- Confirm the panel reports the expected version.
-- Confirm whether the local integration icon/logo appear in the relevant Home Assistant UI for the tested Home Assistant version. Current live result: the icon appears in Home Assistant's integration/repairs UI.
-- Confirm Overview and at least one additional protected scope load for an admin user.
-- Confirm Developer Workbench remains admin-only and local-only.
-- Check Home Assistant logs for import, frontend asset, auth, or panel registration errors.
-- Check the browser console for frontend asset warnings. Current live result before the `0.5.0` domain rename: a `styles.css` MIME-type warning was observed for the old `/local/ha_context_explorer_probe/styles.css?...` path; no HA Context Explorer panel runtime error was reported. Retest the new `/local/ha_context_explorer/styles.css?...` path after migration.
-- Check whether HACS reports update information as expected for the current branch or future release.
-- After a future GitHub Release exists, confirm HACS detects update availability from the release/tag path.
+1. Remove any old HACS/custom integration install if present.
+2. Confirm the old `custom_components/ha_context_explorer_probe` folder is gone.
+3. Add `https://github.com/wdani/ha-context-explorer` as a HACS custom repository with category **Integration**.
+4. Install or update the integration through HACS, then restart Home Assistant if required.
+5. Confirm the integration and sidebar panel use `/ha_context_explorer`.
+6. Confirm the panel reports version `0.5.0`.
+7. Confirm whether the local Home Assistant integration icon appears from `custom_components/ha_context_explorer/brand/`.
+8. Confirm HACS renders the README content and raw-GitHub README logo.
+9. Confirm the HACS list/card icon status. It may still show "icon not available" until the external Home Assistant Brands path has `custom_integrations/ha_context_explorer/icon.png`.
+10. Confirm Home Assistant logs and browser console do not show old `/ha_context_explorer_probe` paths.
+11. Confirm Overview and at least one additional protected scope load for an admin user.
+12. Confirm Developer Workbench remains admin-only and local-only.
+13. Check whether HACS reports update information as expected for the current branch or a future release.
+14. After a future GitHub Release exists, confirm HACS detects update availability from the release/tag path.
 
 This checklist is for custom repository testing only. It is not a HACS default-store submission checklist.
 
@@ -203,9 +202,10 @@ This checklist is for custom repository testing only. It is not a HACS default-s
 This is an external follow-up for the central `home-assistant/brands` repository, not a change that can be completed only inside this repository.
 
 - Use the final custom integration domain folder: `custom_integrations/ha_context_explorer/`.
+- Prepared helper package in this repo: `docs/brands/home-assistant-brands/custom_integrations/ha_context_explorer/`.
 - Add `icon.png` as a square `256x256` PNG derived from the project icon.
-- Optionally add `icon@2x.png` as a square `512x512` PNG.
-- Add `logo.png` only if a true logo variant exists and meets Home Assistant Brands requirements; otherwise rely on icon fallback.
+- Add `icon@2x.png` as a square `512x512` PNG.
+- Add `logo.png` only if a true landscape/logo variant exists and meets Home Assistant Brands requirements; otherwise rely on icon fallback.
 - Ensure images are PNG, trimmed, optimized, and not based on Home Assistant branded images.
 - After merge and cache expiry, confirm `https://brands.home-assistant.io/_/ha_context_explorer/icon.png` returns the custom icon.
 - Remember browser cache may last up to 7 days and CDN cache may last up to 24 hours.
@@ -224,13 +224,14 @@ The intended update direction is HACS custom repository usage backed by GitHub r
 
 Future release checklist:
 
+- Confirm `main` is stable.
 - Decide whether the change affects runtime, install behavior, or only docs/metadata.
 - Bump the integration version only when the change justifies a user-visible release.
 - Update `CHANGELOG.md`.
 - Update `review_bundle.md` with validation results.
 - Confirm `custom_components/ha_context_explorer/manifest.json` and `const.py` agree on the version.
 - Run syntax, manifest, safety, and reference-data checks.
-- Create a Git tag matching the release version.
+- Create tag `v0.5.0` or `0.5.0` only after deciding the tag naming convention.
 - Create a GitHub Release from that tag with concise release notes.
 - Test HACS custom repository install/update behavior against the release.
 
